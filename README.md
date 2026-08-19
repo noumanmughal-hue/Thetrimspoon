@@ -1,6 +1,6 @@
-# CafeBot
+# The Trim Spoon
 
-Café web app.
+Healthy, high-protein food brand web app.
 
 ## Structure
 

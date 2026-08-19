@@ -1,10 +1,11 @@
-# CafeBot
+# The Trim Spoon
 
 ## Purpose
 
-CafeBot is an AI-powered café assistant web app. It helps customers with things
-like browsing the menu, asking questions, and getting recommendations through a
-chat-style interface backed by an LLM.
+The Trim Spoon is an AI-powered assistant web app for The Trim Spoon, a healthy
+high-protein food brand. It helps customers with things like browsing the menu,
+asking questions, and getting recommendations through a chat-style interface
+backed by an LLM.
 
 ## Architecture
 
