@@ -455,7 +455,7 @@ h1, h2, h3 {
 .site-footer {
   background: var(--color-primary);
   color: #eaf3e4;
-  padding: 3rem 0 2rem;
+  padding: 3rem 0 6rem;
 }
 
 .footer-inner {
@@ -523,6 +523,12 @@ h1, h2, h3 {
 .footer-links {
   display: flex;
   gap: 1.5rem;
+}
+
+.footer-disclaimer {
+  width: 100%;
+  font-size: 0.72rem;
+  color: rgba(234, 243, 228, 0.5);
 }
 
 .footer-links a:hover {
