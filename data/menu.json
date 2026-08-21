@@ -1,0 +1,252 @@
+{
+  "hours": [
+    { "days": "Monday - Saturday", "open": "11:00 AM", "close": "11:00 PM" },
+    { "days": "Sunday", "open": "12:00 PM", "close": "10:00 PM" }
+  ],
+  "allergenDisclaimer": "Allergens are inferred from the listed ingredients, not confirmed by kitchen staff. Confirm with staff before ordering if you have a food allergy.",
+  "categories": [
+    {
+      "id": "power-platters",
+      "name": "Power Platters",
+      "price": 899,
+      "currency": "PKR",
+      "items": [
+        {
+          "id": "grilled-chicken-crunch-wrap",
+          "name": "Grilled Chicken Crunch Wrap",
+          "description": "Two soft tortilla wraps filled with juicy grilled chicken, fresh vegetables & homemade dressing.",
+          "price": 899,
+          "size": "Standard",
+          "options": [],
+          "allergens": ["gluten"],
+          "available": true,
+          "image": "images/menu/grilled-chicken-crunch-wrap.jpg"
+        },
+        {
+          "id": "chicken-tikka-veggie-platter",
+          "name": "Healthy Steamed Chicken Tikka & Veggie Platter",
+          "description": "Steamed chicken tikka leg served with steamed vegetables and fresh salad.",
+          "price": 899,
+          "size": "Standard",
+          "options": [],
+          "allergens": [],
+          "available": true,
+          "image": "images/menu/chicken-tikka-veggie-platter.jpg"
+        },
+        {
+          "id": "chicken-brown-rice-platter",
+          "name": "Chicken & Brown Rice Platter",
+          "description": "Grilled chicken breast, wholesome brown rice and fresh garden salad.",
+          "price": 899,
+          "size": "Standard",
+          "options": [],
+          "allergens": [],
+          "available": true,
+          "image": "images/menu/chicken-brown-rice-platter.jpg"
+        },
+        {
+          "id": "smoked-chapli-kabab-platter",
+          "name": "Smoked Chapli Kabab Platter",
+          "description": "Two smoked chicken chapli kababs served with boiled eggs and fresh salad.",
+          "price": 899,
+          "size": "Standard",
+          "options": [],
+          "allergens": ["egg"],
+          "available": true,
+          "image": "images/menu/smoked-chapli-kabab-platter.jpg"
+        },
+        {
+          "id": "smoked-chicken-keema-platter",
+          "name": "Smoked Chicken Keema Platter",
+          "description": "Smoked chicken keema served with multigrain bread and fresh salad.",
+          "price": 899,
+          "size": "Standard",
+          "options": [],
+          "allergens": ["gluten"],
+          "available": true,
+          "image": "images/menu/smoked-chicken-keema-platter.jpg"
+        },
+        {
+          "id": "grilled-seekh-kabab-daal-platter",
+          "name": "Grilled Seekh Kabab & Daal Platter",
+          "description": "Two grilled chicken seekh kababs, yellow daal, multigrain roti and salad.",
+          "price": 899,
+          "size": "Standard",
+          "options": [],
+          "allergens": ["gluten"],
+          "available": true,
+          "image": "images/menu/grilled-seekh-kabab-daal-platter.jpg"
+        },
+        {
+          "id": "double-grilled-chicken-platter",
+          "name": "Double Grilled Chicken Platter",
+          "description": "Double grilled chicken breast served with stir-fried vegetables.",
+          "price": 899,
+          "size": "Standard",
+          "options": [],
+          "allergens": [],
+          "available": true,
+          "image": "images/menu/double-grilled-chicken-platter.jpg"
+        }
+      ]
+    },
+    {
+      "id": "healthy-breakfasts-699",
+      "name": "Healthy Breakfasts",
+      "price": 699,
+      "currency": "PKR",
+      "items": [
+        {
+          "id": "protein-egg-shami-sandwich",
+          "name": "Healthy Protein Egg & Shami Sandwich",
+          "description": "With Greek Yogurt Dressing.",
+          "price": 699,
+          "size": "Standard",
+          "options": [],
+          "allergens": ["gluten", "egg", "dairy"],
+          "available": true,
+          "image": "images/menu/protein-egg-shami-sandwich.jpg"
+        },
+        {
+          "id": "protein-egg-omelette-wrap",
+          "name": "Healthy Protein Egg Omelette Wrap",
+          "description": "With Greek Yogurt Dressing.",
+          "price": 699,
+          "size": "Standard",
+          "options": [],
+          "allergens": ["gluten", "egg", "dairy"],
+          "available": true,
+          "image": "images/menu/protein-egg-omelette-wrap.jpg"
+        }
+      ]
+    },
+    {
+      "id": "healthy-breakfasts-650",
+      "name": "Healthy Breakfasts",
+      "price": 650,
+      "currency": "PKR",
+      "items": [
+        {
+          "id": "protein-veggie-omelette-shami-platter",
+          "name": "Protein Veggie Omelette with Shami Platter",
+          "description": "",
+          "price": 650,
+          "size": "Standard",
+          "options": [],
+          "allergens": ["egg"],
+          "available": true,
+          "image": "images/menu/protein-veggie-omelette-shami-platter.jpg"
+        },
+        {
+          "id": "boiled-egg-shami-breakfast-platter",
+          "name": "Healthy Boiled Egg & Shami Breakfast Platter",
+          "description": "",
+          "price": 650,
+          "size": "Standard",
+          "options": [],
+          "allergens": ["egg"],
+          "available": true,
+          "image": "images/menu/boiled-egg-shami-breakfast-platter.jpg"
+        },
+        {
+          "id": "scrambled-egg-breakfast-platter",
+          "name": "Healthy Scrambled Egg Breakfast Platter",
+          "description": "",
+          "price": 650,
+          "size": "Standard",
+          "options": [],
+          "allergens": ["egg"],
+          "available": true,
+          "image": "images/menu/scrambled-egg-breakfast-platter.jpg"
+        }
+      ]
+    },
+    {
+      "id": "protein-side-add-ons",
+      "name": "Protein Side Add-Ons",
+      "currency": "PKR",
+      "items": [
+        {
+          "id": "chicken-chapli-kababs-2pc",
+          "name": "Chicken Chapli Kababs (2 pcs)",
+          "description": "",
+          "price": 500,
+          "size": "2 pcs",
+          "options": [],
+          "allergens": [],
+          "available": true
+        },
+        {
+          "id": "chicken-seekh-kababs-2pc",
+          "name": "Chicken Seekh Kababs (2 pcs)",
+          "description": "",
+          "price": 375,
+          "size": "2 pcs",
+          "options": [],
+          "allergens": [],
+          "available": true
+        },
+        {
+          "id": "chicken-shami-kababs-2pc",
+          "name": "Chicken Shami Kababs (2 pcs)",
+          "description": "",
+          "price": 300,
+          "size": "2 pcs",
+          "options": [],
+          "allergens": [],
+          "available": true
+        },
+        {
+          "id": "grilled-chicken-breast",
+          "name": "Grilled Chicken Breast",
+          "description": "",
+          "price": 400,
+          "size": "Standard",
+          "options": [],
+          "allergens": [],
+          "available": true
+        },
+        {
+          "id": "steamed-chicken-tikka-leg",
+          "name": "Steamed Chicken Tikka Leg",
+          "description": "",
+          "price": 450,
+          "size": "Standard",
+          "options": [],
+          "allergens": [],
+          "available": true
+        },
+        {
+          "id": "protein-chana-chaat-bowl",
+          "name": "Protein Chana Chaat Bowl",
+          "description": "",
+          "price": 250,
+          "size": "Standard",
+          "options": [],
+          "allergens": [],
+          "available": true
+        },
+        {
+          "id": "crunch-box-salad",
+          "name": "Crunch Box Salad",
+          "description": "",
+          "price": 150,
+          "size": "Standard",
+          "options": [],
+          "allergens": [],
+          "available": true
+        },
+        {
+          "id": "boiled-eggs-2pc",
+          "name": "2 Boiled Eggs",
+          "description": "",
+          "price": 200,
+          "size": "2 pcs",
+          "options": [],
+          "allergens": ["egg"],
+          "available": true
+        }
+      ]
+    }
+  ]
+}

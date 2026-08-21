@@ -7,7 +7,11 @@ const chatMessages = document.getElementById('chat-messages');
 const navToggle = document.getElementById('nav-toggle');
 const navLinks = document.querySelectorAll('.main-nav a');
 
-const MOCK_REPLY = "Hi! I'm The Trim Spoon Assistant. My AI brain isn't connected yet.";
+const CHAT_ENDPOINT = '/api/chat';
+const MAX_HISTORY = 20;
+const NETWORK_ERROR_REPLY = "Sorry, I couldn't reach the server. Please check your connection and try again.";
+
+let conversationHistory = [];
 
 function openChat() {
   chatWindow.classList.add('open');
@@ -36,6 +40,17 @@ function addMessage(text, sender) {
   bubble.textContent = text;
   chatMessages.appendChild(bubble);
   chatMessages.scrollTop = chatMessages.scrollHeight;
+  return bubble;
+}
+
+function showTypingIndicator() {
+  const bubble = document.createElement('div');
+  bubble.className = 'chat-bubble bot typing';
+  bubble.setAttribute('aria-label', 'The Trim Spoon Assistant is typing');
+  bubble.innerHTML = '<span></span><span></span><span></span>';
+  chatMessages.appendChild(bubble);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+  return bubble;
 }
 
 chatToggle.addEventListener('click', toggleChat);
@@ -47,7 +62,7 @@ navLinks.forEach(function (link) {
   });
 });
 
-chatForm.addEventListener('submit', function (event) {
+chatForm.addEventListener('submit', async function (event) {
   event.preventDefault();
   const text = chatInput.value.trim();
   if (!text) return;
@@ -55,7 +70,35 @@ chatForm.addEventListener('submit', function (event) {
   addMessage(text, 'user');
   chatInput.value = '';
 
-  setTimeout(function () {
-    addMessage(MOCK_REPLY, 'bot');
-  }, 400);
+  const typingBubble = showTypingIndicator();
+
+  try {
+    const response = await fetch(CHAT_ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: text,
+        conversationHistory: conversationHistory.slice(-MAX_HISTORY),
+      }),
+    });
+
+    const data = await response.json().catch(function () {
+      return null;
+    });
+
+    typingBubble.remove();
+
+    if (!data) {
+      addMessage(NETWORK_ERROR_REPLY, 'bot');
+      return;
+    }
+
+    addMessage(data.reply || NETWORK_ERROR_REPLY, 'bot');
+    conversationHistory = Array.isArray(data.conversationHistory)
+      ? data.conversationHistory.slice(-MAX_HISTORY)
+      : conversationHistory;
+  } catch (error) {
+    typingBubble.remove();
+    addMessage(NETWORK_ERROR_REPLY, 'bot');
+  }
 });

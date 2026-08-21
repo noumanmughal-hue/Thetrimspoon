@@ -1,0 +1,46 @@
+{
+  "note": "Sample/placeholder promotions for development and testing. Not live offers until reviewed and confirmed by the business.",
+  "promotions": [
+    {
+      "id": "weekday-lunch-10",
+      "name": "Weekday Lunch Discount",
+      "rule": "10% off the order total when placed Monday through Friday, 12:00 PM to 3:00 PM.",
+      "discountType": "percentage",
+      "discountValue": 10,
+      "eligibility": {
+        "days": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"],
+        "timeWindow": { "start": "12:00 PM", "end": "3:00 PM" },
+        "minOrderAmount": 899,
+        "currency": "PKR"
+      },
+      "active": true
+    },
+    {
+      "id": "first-order-welcome",
+      "name": "First Order Welcome Discount",
+      "rule": "Rs. 100 off for a customer's first order.",
+      "discountType": "fixed",
+      "discountValue": 100,
+      "eligibility": {
+        "newCustomerOnly": true,
+        "minOrderAmount": 1000,
+        "currency": "PKR",
+        "maxRedemptionsPerCustomer": 1
+      },
+      "active": true
+    },
+    {
+      "id": "seasonal-15-off",
+      "name": "Seasonal 15% Off",
+      "rule": "15% off orders over Rs. 2000 during a limited seasonal window.",
+      "discountType": "percentage",
+      "discountValue": 15,
+      "eligibility": {
+        "minOrderAmount": 2000,
+        "currency": "PKR",
+        "seasonalWindow": true
+      },
+      "active": false
+    }
+  ]
+}
