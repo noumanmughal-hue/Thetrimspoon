@@ -13,6 +13,18 @@ const NETWORK_ERROR_REPLY = "Sorry, I couldn't reach the server. Please check yo
 
 let conversationHistory = [];
 
+// A plain slice(-N) can land mid-turn and strip the tool_use message a later
+// tool_result refers to, which the API rejects. Only cut at a real turn
+// boundary: a user message with plain string content (never a tool_result).
+function truncateHistory(history, maxMessages) {
+  if (history.length <= maxMessages) return history;
+  let start = history.length - maxMessages;
+  while (start < history.length && !(history[start].role === 'user' && typeof history[start].content === 'string')) {
+    start += 1;
+  }
+  return history.slice(start);
+}
+
 function openChat() {
   chatWindow.classList.add('open');
   chatWindow.setAttribute('aria-hidden', 'false');
@@ -95,7 +107,7 @@ chatForm.addEventListener('submit', async function (event) {
 
     addMessage(data.reply || NETWORK_ERROR_REPLY, 'bot');
     conversationHistory = Array.isArray(data.conversationHistory)
-      ? data.conversationHistory.slice(-MAX_HISTORY)
+      ? truncateHistory(data.conversationHistory, MAX_HISTORY)
       : conversationHistory;
   } catch (error) {
     typingBubble.remove();

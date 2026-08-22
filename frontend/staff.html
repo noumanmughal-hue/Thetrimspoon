@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Staff Dashboard | The Trim Spoon</title>
+  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="staff.css">
+</head>
+<body class="staff-body">
+
+  <header class="staff-header">
+    <h1>Staff Dashboard</h1>
+    <button id="refresh-btn" class="btn btn-primary" type="button">Refresh</button>
+  </header>
+
+  <main class="staff-main">
+    <table class="orders-table">
+      <thead>
+        <tr>
+          <th>Order ID</th>
+          <th>Items</th>
+          <th>Fulfillment</th>
+          <th>Customer</th>
+          <th>Total</th>
+          <th>Status</th>
+          <th></th>
+        </tr>
+      </thead>
+      <tbody id="orders-body"></tbody>
+    </table>
+    <p id="empty-message" class="empty-message" hidden>No orders yet.</p>
+    <p id="status-message" class="status-message" hidden></p>
+  </main>
+
+  <script src="staff.js"></script>
+</body>
+</html>
