@@ -114,3 +114,155 @@ chatForm.addEventListener('submit', async function (event) {
     addMessage(NETWORK_ERROR_REPLY, 'bot');
   }
 });
+
+// ---------- Meal plan calculator ----------
+// Reads static plan config from the backend and computes totals client-side —
+// no LLM call involved in browsing or pricing a plan.
+const PLANS_ENDPOINT = '/api/subscriptions';
+const planTabs = document.querySelectorAll('.plan-tab');
+const planDurationOptionsEl = document.getElementById('plan-duration-options');
+const planItemsOptionsEl = document.getElementById('plan-items-options');
+const planPerDayEl = document.getElementById('plan-per-day');
+const planDurationDisplayEl = document.getElementById('plan-duration-display');
+const planTotalEl = document.getElementById('plan-total');
+const planWhatsappBtn = document.getElementById('plan-whatsapp-btn');
+const planStatusEl = document.getElementById('plan-status');
+
+let subscriptionData = null;
+let selectedPlanType = 'weekly';
+let selectedDuration = null;
+let selectedItemIds = new Set();
+
+function findPlan(planType) {
+  return subscriptionData.plans.find(function (plan) { return plan.planType === planType; });
+}
+
+function renderPlanDurations() {
+  const plan = findPlan(selectedPlanType);
+  planDurationOptionsEl.innerHTML = '';
+
+  plan.durationOptions.forEach(function (option) {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'plan-duration-btn' + (option.duration === selectedDuration ? ' active' : '');
+    btn.textContent = option.duration + ' Days';
+    btn.addEventListener('click', function () {
+      selectedDuration = option.duration;
+      renderPlanDurations();
+      updatePlanSummary();
+    });
+    planDurationOptionsEl.appendChild(btn);
+  });
+}
+
+function renderPlanItems() {
+  planItemsOptionsEl.innerHTML = '';
+
+  subscriptionData.eligibleItems.forEach(function (item) {
+    const label = document.createElement('label');
+    label.className = 'plan-item-option';
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.checked = selectedItemIds.has(item.itemId);
+    checkbox.addEventListener('change', function () {
+      if (checkbox.checked) {
+        selectedItemIds.add(item.itemId);
+      } else {
+        selectedItemIds.delete(item.itemId);
+      }
+      updatePlanSummary();
+    });
+
+    label.appendChild(checkbox);
+    label.append(' ' + item.name);
+    planItemsOptionsEl.appendChild(label);
+  });
+}
+
+function updatePlanSummary() {
+  const plan = findPlan(selectedPlanType);
+  const durationOption = plan.durationOptions.find(function (option) { return option.duration === selectedDuration; });
+  const currency = subscriptionData.currency;
+
+  planPerDayEl.textContent = currency + ' ' + subscriptionData.perDayPrice.toLocaleString();
+  planDurationDisplayEl.textContent = selectedDuration + ' days';
+  planTotalEl.textContent = currency + ' ' + durationOption.total.toLocaleString();
+
+  const chosenNames = subscriptionData.eligibleItems
+    .filter(function (item) { return selectedItemIds.has(item.itemId); })
+    .map(function (item) { return item.name; });
+
+  const rotationText = chosenNames.length > 0
+    ? ' Preferred platters: ' + chosenNames.join(', ') + '.'
+    : '';
+
+  const message = "Hi! I'd like to sign up for The Trim Spoon " + plan.label + ' (' + selectedDuration +
+    ' days) — ' + currency + ' ' + durationOption.total + '.' + rotationText;
+
+  planWhatsappBtn.href = 'https://wa.me/' + subscriptionData.whatsappNumber + '?text=' + encodeURIComponent(message);
+}
+
+function selectPlanType(planType) {
+  selectedPlanType = planType;
+  const plan = findPlan(planType);
+  selectedDuration = plan.durationOptions[0].duration;
+
+  planTabs.forEach(function (tab) {
+    const isActive = tab.dataset.plan === planType;
+    tab.classList.toggle('active', isActive);
+    tab.setAttribute('aria-selected', String(isActive));
+  });
+
+  renderPlanDurations();
+  updatePlanSummary();
+}
+
+planTabs.forEach(function (tab) {
+  tab.addEventListener('click', function () {
+    selectPlanType(tab.dataset.plan);
+  });
+});
+
+async function loadSubscriptionPlans() {
+  try {
+    const response = await fetch(PLANS_ENDPOINT);
+    if (!response.ok) throw new Error('Failed to load plans');
+
+    subscriptionData = await response.json();
+    selectedDuration = findPlan(selectedPlanType).durationOptions[0].duration;
+    selectedItemIds = new Set(subscriptionData.eligibleItems.map(function (item) { return item.itemId; }));
+
+    renderPlanDurations();
+    renderPlanItems();
+    updatePlanSummary();
+  } catch (error) {
+    planStatusEl.textContent = 'Could not load meal plans right now. Please try again later.';
+    planStatusEl.hidden = false;
+  }
+}
+
+if (planTabs.length > 0) {
+  loadSubscriptionPlans();
+}
+
+// ---------- Menu card 3D flip ----------
+// Click/tap toggles flip state; a plain click listener doesn't hijack touch
+// scroll gestures the way touchstart/touchmove handling would.
+function toggleFlip(card) {
+  const isFlipped = card.classList.toggle('flipped');
+  card.setAttribute('aria-pressed', String(isFlipped));
+}
+
+document.querySelectorAll('.flip-card').forEach(function (card) {
+  card.addEventListener('click', function () {
+    toggleFlip(card);
+  });
+
+  card.addEventListener('keydown', function (event) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      toggleFlip(card);
+    }
+  });
+});

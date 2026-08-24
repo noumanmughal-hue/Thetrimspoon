@@ -23,6 +23,9 @@ const PROMOTIONS_DATA = JSON.parse(
 const FEES_DATA = JSON.parse(
   fs.readFileSync(path.resolve(__dirname, '..', 'data', 'fees.json'), 'utf8')
 );
+const SUBSCRIPTIONS_DATA = JSON.parse(
+  fs.readFileSync(path.resolve(__dirname, '..', 'data', 'subscriptions.json'), 'utf8')
+);
 const FULL_SYSTEM_PROMPT = `${SYSTEM_PROMPT}
 
 ## Hours
@@ -193,17 +196,64 @@ const TOOLS = [
       },
       required: ['customerConfirmed'],
     },
+  },
+  {
+    name: 'getSubscriptionPlans',
+    description:
+      'Get the available weekly and monthly meal plan options: valid durations, per-day price, and the deterministic total for each duration. Use this to answer any question about subscription/meal plan pricing.',
+    input_schema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'calculateSubscriptionPrice',
+    description:
+      'Get the deterministic price for a specific weekly/monthly plan selection. Always use this instead of calculating a plan total yourself.',
+    input_schema: {
+      type: 'object',
+      properties: {
+        planType: { type: 'string', enum: ['weekly', 'monthly'], description: 'Which plan type.' },
+        duration: { type: 'integer', description: 'Number of days, from getSubscriptionPlans durationOptions for that planType.' },
+        dailyItemIds: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'One Power Platter item id per day of the plan (length must equal duration) — the customer\'s daily rotation, from getMenu or getSubscriptionPlans.',
+        },
+      },
+      required: ['planType', 'duration', 'dailyItemIds'],
+    },
+  },
+  {
+    name: 'getSubscriptionWhatsAppLink',
+    description:
+      "Build a pre-filled WhatsApp link to sign up for a weekly/monthly plan, with the deterministic price and chosen platters already in the message. Always use this for a plan checkout/inquiry instead of writing the message yourself. Share the returned url with the customer.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        planType: { type: 'string', enum: ['weekly', 'monthly'], description: 'Which plan type.' },
+        duration: { type: 'integer', description: 'Number of days, from getSubscriptionPlans durationOptions for that planType.' },
+        dailyItemIds: {
+          type: 'array',
+          items: { type: 'string' },
+          description: 'One Power Platter item id per day of the plan (length must equal duration).',
+        },
+        customerName: { type: 'string', description: "The customer's name, if they gave one. Optional." },
+      },
+      required: ['planType', 'duration', 'dailyItemIds'],
+    },
     cache_control: { type: 'ephemeral' },
   },
 ];
 
 const MAX_TOOL_TURNS = 6;
 
+// Nutrition facts are for the on-page flip cards only — stripped here so they
+// never cost tokens in the agent's context (never asked about, never invented).
 function getMenu() {
   const categories = MENU_DATA.categories
     .map((category) => ({
       ...category,
-      items: category.items.filter((item) => item.available),
+      items: category.items
+        .filter((item) => item.available)
+        .map(({ nutrition, ...item }) => item),
     }))
     .filter((category) => category.items.length > 0);
 
@@ -735,6 +785,105 @@ function saveConfirmedOrder(summary) {
   return savedOrder;
 }
 
+function getSubscriptionCategory() {
+  return MENU_DATA.categories.find((category) => category.id === SUBSCRIPTIONS_DATA.eligibleCategory);
+}
+
+function getSubscriptionEligibleItems() {
+  const category = getSubscriptionCategory();
+  return category ? category.items.filter((item) => item.available) : [];
+}
+
+// The only place plan pricing is computed. Always derives from the real
+// category/menu price and the configured discount rate — never invented.
+function getSubscriptionPlans() {
+  const category = getSubscriptionCategory();
+  const perDayPrice = category ? category.price : 0;
+  const eligibleItems = getSubscriptionEligibleItems();
+
+  const plans = Object.entries(SUBSCRIPTIONS_DATA.plans).map(([planType, plan]) => ({
+    planType,
+    label: plan.label,
+    discountRate: plan.discountRate,
+    durationOptions: plan.durationOptions.map((duration) => {
+      const subtotal = perDayPrice * duration;
+      const discountAmount = Math.round(subtotal * plan.discountRate);
+      return { duration, subtotal, discountAmount, total: subtotal - discountAmount };
+    }),
+  }));
+
+  return {
+    currency: SUBSCRIPTIONS_DATA.currency,
+    perDayPrice,
+    eligibleItems: eligibleItems.map((item) => ({ itemId: item.id, name: item.name })),
+    plans,
+  };
+}
+
+function calculateSubscriptionPrice(input) {
+  const { planType, duration, dailyItemIds } = input || {};
+  const plan = SUBSCRIPTIONS_DATA.plans[planType];
+
+  if (!plan) {
+    return { success: false, error: `"${planType}" is not a recognized plan type. Use "weekly" or "monthly".` };
+  }
+
+  if (!plan.durationOptions.includes(duration)) {
+    return {
+      success: false,
+      error: `${duration} is not a valid duration for ${planType}. Valid options: ${plan.durationOptions.join(', ')}.`,
+    };
+  }
+
+  if (!Array.isArray(dailyItemIds) || dailyItemIds.length !== duration) {
+    return { success: false, error: `dailyItemIds must list exactly one item id per day (${duration} total).` };
+  }
+
+  const eligibleItems = getSubscriptionEligibleItems();
+  const invalidIds = dailyItemIds.filter((id) => !eligibleItems.some((item) => item.id === id));
+  if (invalidIds.length > 0) {
+    return { success: false, error: `Not a valid Power Platter item id: ${invalidIds.join(', ')}.` };
+  }
+
+  const subtotal = dailyItemIds.reduce(
+    (sum, id) => sum + eligibleItems.find((item) => item.id === id).price,
+    0
+  );
+  const discountAmount = Math.round(subtotal * plan.discountRate);
+
+  return {
+    success: true,
+    planType,
+    duration,
+    currency: SUBSCRIPTIONS_DATA.currency,
+    subtotal,
+    discountRate: plan.discountRate,
+    discountAmount,
+    total: subtotal - discountAmount,
+  };
+}
+
+function getSubscriptionWhatsAppLink(input) {
+  const priceResult = calculateSubscriptionPrice(input);
+  if (!priceResult.success) return priceResult;
+
+  const { planType, duration, dailyItemIds, customerName } = input;
+  const plan = SUBSCRIPTIONS_DATA.plans[planType];
+  const eligibleItems = getSubscriptionEligibleItems();
+  const itemNames = dailyItemIds.map((id) => eligibleItems.find((item) => item.id === id).name);
+  const namePart = customerName ? ` My name is ${customerName}.` : '';
+
+  const message = `Hi! I'd like to sign up for The Trim Spoon ${plan.label} (${duration} days) — ${priceResult.currency} ${priceResult.total}. Platters: ${itemNames.join(', ')}.${namePart}`;
+
+  return {
+    success: true,
+    whatsappNumber: SUBSCRIPTIONS_DATA.whatsappNumber,
+    message,
+    url: `https://wa.me/${SUBSCRIPTIONS_DATA.whatsappNumber}?text=${encodeURIComponent(message)}`,
+    pricing: priceResult,
+  };
+}
+
 function runTool(name, input, orderState) {
   if (name === 'getMenu') return getMenu();
   if (name === 'addItemToCart') return addItemToCart(orderState, input);
@@ -750,6 +899,9 @@ function runTool(name, input, orderState) {
   if (name === 'getOrderTotal') return getOrderTotal(orderState);
   if (name === 'getOrderSummary') return getOrderSummary(orderState);
   if (name === 'finalizeOrder') return finalizeOrder(orderState, input);
+  if (name === 'getSubscriptionPlans') return getSubscriptionPlans();
+  if (name === 'calculateSubscriptionPrice') return calculateSubscriptionPrice(input);
+  if (name === 'getSubscriptionWhatsAppLink') return getSubscriptionWhatsAppLink(input);
   throw new Error(`Unknown tool: ${name}`);
 }
 
@@ -860,6 +1012,12 @@ app.post('/api/chat', async (req, res) => {
       conversationHistory: history,
     });
   }
+});
+
+// Plain static-data endpoint — the site's meal-plan calculator reads this
+// directly and computes on the client, without spending any LLM tokens.
+app.get('/api/subscriptions', (req, res) => {
+  res.json({ ...getSubscriptionPlans(), whatsappNumber: SUBSCRIPTIONS_DATA.whatsappNumber });
 });
 
 const ORDER_STATUS_SEQUENCE = ['NEW', 'PREPARING', 'READY', 'COMPLETED'];

@@ -20,7 +20,8 @@
           "options": [],
           "allergens": ["gluten"],
           "available": true,
-          "image": "images/menu/grilled-chicken-crunch-wrap.jpg"
+          "image": "images/menu/grilled-chicken-crunch-wrap.jpg",
+          "nutrition": { "calories": 430, "protein": 35, "carbs": 32, "fat": 11 }
         },
         {
           "id": "chicken-tikka-veggie-platter",
@@ -31,7 +32,8 @@
           "options": [],
           "allergens": [],
           "available": true,
-          "image": "images/menu/chicken-tikka-veggie-platter.jpg"
+          "image": "images/menu/chicken-tikka-veggie-platter.jpg",
+          "nutrition": { "calories": 360, "protein": 36, "carbs": 18, "fat": 8 }
         },
         {
           "id": "chicken-brown-rice-platter",
@@ -42,7 +44,8 @@
           "options": [],
           "allergens": [],
           "available": true,
-          "image": "images/menu/chicken-brown-rice-platter.jpg"
+          "image": "images/menu/chicken-brown-rice-platter.jpg",
+          "nutrition": { "calories": 480, "protein": 42, "carbs": 35, "fat": 12 }
         },
         {
           "id": "smoked-chapli-kabab-platter",
@@ -53,7 +56,8 @@
           "options": [],
           "allergens": ["egg"],
           "available": true,
-          "image": "images/menu/smoked-chapli-kabab-platter.jpg"
+          "image": "images/menu/smoked-chapli-kabab-platter.jpg",
+          "nutrition": { "calories": 480, "protein": 32, "carbs": 30, "fat": 18 }
         },
         {
           "id": "smoked-chicken-keema-platter",
@@ -64,7 +68,8 @@
           "options": [],
           "allergens": ["gluten"],
           "available": true,
-          "image": "images/menu/smoked-chicken-keema-platter.jpg"
+          "image": "images/menu/smoked-chicken-keema-platter.jpg",
+          "nutrition": { "calories": 410, "protein": 36, "carbs": 28, "fat": 14 }
         },
         {
           "id": "grilled-seekh-kabab-daal-platter",
@@ -75,7 +80,8 @@
           "options": [],
           "allergens": ["gluten"],
           "available": true,
-          "image": "images/menu/grilled-seekh-kabab-daal-platter.jpg"
+          "image": "images/menu/grilled-seekh-kabab-daal-platter.jpg",
+          "nutrition": { "calories": 440, "protein": 36, "carbs": 45, "fat": 12 }
         },
         {
           "id": "double-grilled-chicken-platter",
@@ -86,7 +92,8 @@
           "options": [],
           "allergens": [],
           "available": true,
-          "image": "images/menu/double-grilled-chicken-platter.jpg"
+          "image": "images/menu/double-grilled-chicken-platter.jpg",
+          "nutrition": { "calories": 420, "protein": 40, "carbs": 20, "fat": 12 }
         }
       ]
     },
@@ -105,7 +112,8 @@
           "options": [],
           "allergens": ["gluten", "egg", "dairy"],
           "available": true,
-          "image": "images/menu/protein-egg-shami-sandwich.jpg"
+          "image": "images/menu/protein-egg-shami-sandwich.jpg",
+          "nutrition": { "calories": 390, "protein": 28, "carbs": 36, "fat": 14 }
         },
         {
           "id": "protein-egg-omelette-wrap",
@@ -116,7 +124,8 @@
           "options": [],
           "allergens": ["gluten", "egg", "dairy"],
           "available": true,
-          "image": "images/menu/protein-egg-omelette-wrap.jpg"
+          "image": "images/menu/protein-egg-omelette-wrap.jpg",
+          "nutrition": { "calories": 410, "protein": 26, "carbs": 38, "fat": 16 }
         }
       ]
     },
@@ -135,7 +144,8 @@
           "options": [],
           "allergens": ["egg"],
           "available": true,
-          "image": "images/menu/protein-veggie-omelette-shami-platter.jpg"
+          "image": "images/menu/protein-veggie-omelette-shami-platter.jpg",
+          "nutrition": { "calories": 350, "protein": 25, "carbs": 18, "fat": 20 }
         },
         {
           "id": "boiled-egg-shami-breakfast-platter",
@@ -146,7 +156,8 @@
           "options": [],
           "allergens": ["egg"],
           "available": true,
-          "image": "images/menu/boiled-egg-shami-breakfast-platter.jpg"
+          "image": "images/menu/boiled-egg-shami-breakfast-platter.jpg",
+          "nutrition": { "calories": 360, "protein": 27, "carbs": 20, "fat": 18 }
         },
         {
           "id": "scrambled-egg-breakfast-platter",
@@ -157,7 +168,8 @@
           "options": [],
           "allergens": ["egg"],
           "available": true,
-          "image": "images/menu/scrambled-egg-breakfast-platter.jpg"
+          "image": "images/menu/scrambled-egg-breakfast-platter.jpg",
+          "nutrition": { "calories": 340, "protein": 22, "carbs": 16, "fat": 20 }
         }
       ]
     },

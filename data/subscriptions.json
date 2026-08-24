@@ -1,0 +1,17 @@
+{
+  "currency": "PKR",
+  "eligibleCategory": "power-platters",
+  "whatsappNumber": "923365402542",
+  "plans": {
+    "weekly": {
+      "label": "Weekly Plan",
+      "durationOptions": [6, 7],
+      "discountRate": 0
+    },
+    "monthly": {
+      "label": "Monthly Plan",
+      "durationOptions": [24, 30],
+      "discountRate": 0
+    }
+  }
+}
