@@ -7,8 +7,10 @@
     "start": "node server.js"
   },
   "dependencies": {
-    "express": "^4.19.2",
+    "@anthropic-ai/sdk": "^0.27.0",
     "dotenv": "^16.4.5",
-    "@anthropic-ai/sdk": "^0.27.0"
+    "express": "^4.19.2",
+    "express-rate-limit": "^8.6.2",
+    "helmet": "^8.3.0"
   }
 }

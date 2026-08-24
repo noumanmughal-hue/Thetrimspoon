@@ -4,10 +4,38 @@ const crypto = require('crypto');
 require('dotenv').config({ path: path.resolve(__dirname, '..', '.env') });
 
 const express = require('express');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
 const Anthropic = require('@anthropic-ai/sdk');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+
+if (process.env.NODE_ENV === 'production') {
+  app.set('trust proxy', 1);
+  app.use((req, res, next) => {
+    if (req.secure || req.headers['x-forwarded-proto'] === 'https') return next();
+    return res.redirect(301, `https://${req.headers.host}${req.originalUrl}`);
+  });
+}
+
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'"],
+        imgSrc: ["'self'", 'data:'],
+        connectSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+        frameAncestors: ["'none'"],
+      },
+    },
+  })
+);
 
 const client = new Anthropic();
 const SYSTEM_PROMPT = fs.readFileSync(
@@ -764,11 +792,18 @@ function finalizeOrder(orderState, input) {
 
 const ORDERS_FILE_PATH = path.resolve(__dirname, '..', 'data', 'orders.json');
 
+// orders.json holds real customer PII (name, phone, address) written at runtime, so it's
+// gitignored rather than committed — meaning a fresh clone won't have the file yet.
+function readOrdersFile() {
+  if (!fs.existsSync(ORDERS_FILE_PATH)) return [];
+  return JSON.parse(fs.readFileSync(ORDERS_FILE_PATH, 'utf8'));
+}
+
 // Synchronous fs calls are used deliberately: they block Node's single event loop for
 // their duration, so two requests finalizing around the same time can't interleave a
 // read-modify-write and clobber each other's saved order.
 function saveConfirmedOrder(summary) {
-  const existingOrders = JSON.parse(fs.readFileSync(ORDERS_FILE_PATH, 'utf8'));
+  const existingOrders = readOrdersFile();
 
   const savedOrder = {
     orderId: crypto.randomUUID(),
@@ -923,6 +958,60 @@ function createOrderState() {
   };
 }
 
+const chatLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 20,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many messages. Please wait a moment and try again.' },
+});
+
+const ordersLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 60,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests. Please wait a moment and try again.' },
+});
+
+// Constant-time comparison via fixed-length hash digests, so timingSafeEqual never
+// throws on mismatched input length and login attempts can't be timed to guess chars.
+function safeEqual(a, b) {
+  const bufA = crypto.createHash('sha256').update(String(a)).digest();
+  const bufB = crypto.createHash('sha256').update(String(b)).digest();
+  return crypto.timingSafeEqual(bufA, bufB);
+}
+
+// Gates the staff dashboard (order list + customer names/phones/addresses) behind
+// HTTP Basic Auth. Fails closed if STAFF_USERNAME/STAFF_PASSWORD aren't configured,
+// rather than silently leaving the dashboard open.
+function requireStaffAuth(req, res, next) {
+  const expectedUser = process.env.STAFF_USERNAME;
+  const expectedPass = process.env.STAFF_PASSWORD;
+
+  if (!expectedUser || !expectedPass) {
+    console.error('Staff auth is not configured: set STAFF_USERNAME and STAFF_PASSWORD in .env.');
+    return res.status(503).json({ error: 'Staff dashboard is not configured.' });
+  }
+
+  const header = req.headers.authorization || '';
+  const [scheme, encoded] = header.split(' ');
+
+  if (scheme === 'Basic' && encoded) {
+    const decoded = Buffer.from(encoded, 'base64').toString('utf8');
+    const separatorIndex = decoded.indexOf(':');
+    const user = separatorIndex === -1 ? decoded : decoded.slice(0, separatorIndex);
+    const pass = separatorIndex === -1 ? '' : decoded.slice(separatorIndex + 1);
+
+    if (safeEqual(user, expectedUser) && safeEqual(pass, expectedPass)) {
+      return next();
+    }
+  }
+
+  res.setHeader('WWW-Authenticate', 'Basic realm="Staff Dashboard"');
+  return res.status(401).json({ error: 'Authentication required.' });
+}
+
 function attachSession(req, res, next) {
   const cookieHeader = req.headers.cookie || '';
   const match = cookieHeader.match(/(?:^|;\s*)sessionId=([^;]+)/);
@@ -939,18 +1028,40 @@ function attachSession(req, res, next) {
   next();
 }
 
-app.use(express.json());
+app.use(express.json({ limit: '256kb' }));
 app.use(attachSession);
+app.use(['/staff.html', '/staff.js', '/staff.css', '/api/orders'], ordersLimiter, requireStaffAuth);
 app.use(express.static(path.join(__dirname, '..', 'frontend')));
 
-app.post('/api/chat', async (req, res) => {
+const MAX_MESSAGE_LENGTH = 4000;
+const MAX_HISTORY_MESSAGES = 40;
+const MAX_HISTORY_BYTES = 200_000;
+
+app.post('/api/chat', chatLimiter, async (req, res) => {
   const { message, conversationHistory } = req.body;
 
   if (!message || typeof message !== 'string' || !message.trim()) {
     return res.status(400).json({ error: 'message is required' });
   }
 
+  if (message.length > MAX_MESSAGE_LENGTH) {
+    return res.status(400).json({ error: `message must be ${MAX_MESSAGE_LENGTH} characters or fewer.` });
+  }
+
   const history = Array.isArray(conversationHistory) ? conversationHistory : [];
+
+  if (history.length > MAX_HISTORY_MESSAGES) {
+    return res.status(400).json({ error: 'conversationHistory is too long.' });
+  }
+
+  if (Buffer.byteLength(JSON.stringify(history), 'utf8') > MAX_HISTORY_BYTES) {
+    return res.status(400).json({ error: 'conversationHistory payload is too large.' });
+  }
+
+  if (history.some((entry) => !entry || (entry.role !== 'user' && entry.role !== 'assistant'))) {
+    return res.status(400).json({ error: 'conversationHistory contains an invalid entry.' });
+  }
+
   const messages = [...history, { role: 'user', content: message }];
 
   try {
@@ -1023,12 +1134,12 @@ app.get('/api/subscriptions', (req, res) => {
 const ORDER_STATUS_SEQUENCE = ['NEW', 'PREPARING', 'READY', 'COMPLETED'];
 
 app.get('/api/orders', (req, res) => {
-  const orders = JSON.parse(fs.readFileSync(ORDERS_FILE_PATH, 'utf8'));
+  const orders = readOrdersFile();
   res.json({ orders });
 });
 
 app.post('/api/orders/:orderId/advance', (req, res) => {
-  const orders = JSON.parse(fs.readFileSync(ORDERS_FILE_PATH, 'utf8'));
+  const orders = readOrdersFile();
   const order = orders.find((candidate) => candidate.orderId === req.params.orderId);
 
   if (!order) {

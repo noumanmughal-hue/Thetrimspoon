@@ -505,6 +505,7 @@ h1, h2, h3 {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
   padding: 0.9rem 1.5rem;
   border-bottom: 1px solid var(--color-border);
 }
@@ -515,11 +516,26 @@ h1, h2, h3 {
 
 .addon-name {
   color: var(--color-text);
+  flex-grow: 1;
 }
 
 .addon-price {
   color: var(--color-accent);
   font-weight: 700;
+  flex-shrink: 0;
+  white-space: nowrap;
+  text-align: right;
+}
+
+@media (max-width: 640px) {
+  .addon-row {
+    padding: 0.75rem 1rem;
+    gap: 8px;
+  }
+
+  .addon-name {
+    font-size: 0.9rem;
+  }
 }
 
 /* ---------- Meal Plans ---------- */
