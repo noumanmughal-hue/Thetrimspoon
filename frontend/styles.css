@@ -263,6 +263,30 @@ h1, h2, h3 {
   border-radius: 40px 10px 40px 10px;
 }
 
+.delivery-notice {
+  text-align: center;
+  font-style: italic;
+  color: var(--color-muted);
+}
+
+.delivery-notice--primary {
+  display: block;
+  width: fit-content;
+  max-width: 90%;
+  margin: -1.75rem auto 3rem;
+  padding: 0.6rem 1.25rem;
+  font-size: 0.85rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+}
+
+.delivery-notice--secondary {
+  margin: 0 auto;
+  padding-top: 1rem;
+  font-size: 0.78rem;
+}
+
 .menu-subsection {
   margin-bottom: 3.5rem;
 }
@@ -893,6 +917,12 @@ h1, h2, h3 {
   .menu-banner {
     font-size: 2rem;
     padding: 1rem 2rem;
+  }
+
+  .delivery-notice--primary {
+    max-width: 100%;
+    margin: -1.25rem auto 2.5rem;
+    font-size: 0.78rem;
   }
 
   .hours-inner {
