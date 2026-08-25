@@ -314,12 +314,18 @@ function findMenuItem(itemId) {
   return null;
 }
 
+const MAX_CART_LINE_ITEMS = 50;
+
 function addItemToCart(orderState, input) {
   const { itemId, quantity, options } = input || {};
   const item = findMenuItem(itemId);
 
   if (!item || !item.available) {
     return { success: false, error: `No active menu item with id "${itemId}".` };
+  }
+
+  if (orderState.items.length >= MAX_CART_LINE_ITEMS) {
+    return { success: false, error: `This order already has the maximum of ${MAX_CART_LINE_ITEMS} line items. Remove something before adding more.` };
   }
 
   const qty = Number.isInteger(quantity) && quantity > 0 ? quantity : 1;
@@ -1251,7 +1257,7 @@ const MAX_PLAN_ITEMS = 10;
 
 // Deterministic cart mutation for the chat's "Add 3-Day Plan to Order" CTA — reuses
 // addItemToCart (same validation/pricing) so clicking it never costs an LLM call.
-app.post('/api/cart/add-plan', (req, res) => {
+app.post('/api/cart/add-plan', chatLimiter, (req, res) => {
   const { itemIds } = req.body || {};
 
   if (!Array.isArray(itemIds) || itemIds.length === 0 || itemIds.length > MAX_PLAN_ITEMS) {
