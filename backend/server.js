@@ -1229,7 +1229,7 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
   try {
     let response = await client.messages.create({
       model: 'claude-sonnet-5',
-      max_tokens: 1024,
+      max_tokens: 600,
       system: CACHED_SYSTEM_PROMPT,
       tools: TOOLS,
       messages,
@@ -1258,7 +1258,7 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
 
       response = await client.messages.create({
         model: 'claude-sonnet-5',
-        max_tokens: 1024,
+        max_tokens: 600,
         system: CACHED_SYSTEM_PROMPT,
         tools: TOOLS,
         messages,

@@ -8,7 +8,7 @@ const navToggle = document.getElementById('nav-toggle');
 const navLinks = document.querySelectorAll('.main-nav a');
 
 const CHAT_ENDPOINT = '/api/chat';
-const MAX_HISTORY = 20;
+const MAX_HISTORY = 12;
 const NETWORK_ERROR_REPLY = "Sorry, I couldn't reach the server. Please check your connection and try again.";
 
 let conversationHistory = [];
@@ -129,12 +129,46 @@ navLinks.forEach(function (link) {
   });
 });
 
+// Answers a small set of static, non-order questions instantly from the same
+// real data already shown elsewhere on the page — no API call, no token cost.
+// Deliberately narrow (near-exact phrasing only): anything even slightly
+// ambiguous should still reach the real assistant rather than risk a wrong
+// canned answer.
+const STATIC_ANSWERS = [
+  {
+    pattern: /^(what are |what're )?(your )?(hours|opening hours|business hours|timings)\??$|^are you open( now)?\??$|^when (do|are) you open\??$/i,
+    answer: 'We\'re open Monday–Saturday 11:00 AM–11:00 PM, and Sunday 12:00 PM–10:00 PM.',
+  },
+  {
+    pattern: /^where are you( located)?\??$|^what('s| is) your (address|location)\??$|^your (address|location)\??$/i,
+    answer: 'We\'re a cloud kitchen at B-Block Satellite Town, near Hydri Chowk, Rawalpindi, Pakistan.',
+  },
+  {
+    pattern: /^(what('s| is) your )?(phone|contact) number\??$|^your number\??$/i,
+    answer: 'You can reach us at 0336-5402542.',
+  },
+];
+
+function getStaticAnswer(text) {
+  const trimmed = text.trim();
+  const match = STATIC_ANSWERS.find(function (entry) {
+    return entry.pattern.test(trimmed);
+  });
+  return match ? match.answer : null;
+}
+
 // Shared by the form submit and the goal chips / inline CTA buttons, so every
 // entry point into the chat goes through the same request/render logic.
 async function sendChatMessage(text) {
   removeGoalChips();
   addMessage(text, 'user');
   chatInput.value = '';
+
+  const staticAnswer = getStaticAnswer(text);
+  if (staticAnswer) {
+    addMessage(staticAnswer, 'bot');
+    return;
+  }
 
   const typingBubble = showTypingIndicator();
 
