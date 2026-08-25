@@ -1311,6 +1311,10 @@ app.post('/api/orders/:orderId/advance', (req, res) => {
   res.json({ order });
 });
 
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+  });
+}
+
+module.exports = app;
