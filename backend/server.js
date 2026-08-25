@@ -814,6 +814,11 @@ function finalizeOrder(orderState, input) {
   return { success: true, order: currentSummary, orderId: savedOrder.orderId, timestamp: savedOrder.timestamp };
 }
 
+// Orders are persisted to a local JSON file. This is for development/demo purposes
+// only — it assumes a single, long-lived filesystem. Serverless platforms (e.g. Vercel)
+// spin up ephemeral instances and do not guarantee writes to disk persist across
+// requests or deploys, so this storage approach is not suitable for production there;
+// a real database is required for production use.
 const ORDERS_FILE_PATH = path.resolve(__dirname, '..', 'data', 'orders.json');
 
 // orders.json holds real customer PII (name, phone, address) written at runtime, so it's
