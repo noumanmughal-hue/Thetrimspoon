@@ -1242,13 +1242,7 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
     } else if (error instanceof Anthropic.APIError) {
       console.error(`Claude API error ${error.status}:`, error.message);
     } else {
-      // TEMP DEBUG (Vercel prod chat 502 investigation) — logs presence/length only,
-      // never the key value. Remove once ANTHROPIC_API_KEY resolution is confirmed fixed.
-      console.error(
-        'Unexpected error calling Claude API:', error,
-        '| ANTHROPIC_API_KEY present:', Boolean(process.env.ANTHROPIC_API_KEY),
-        '| length:', (process.env.ANTHROPIC_API_KEY || '').length
-      );
+      console.error('Unexpected error calling Claude API:', error);
     }
 
     res.status(502).json({
