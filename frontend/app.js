@@ -30,6 +30,10 @@ function openChat() {
   chatWindow.setAttribute('aria-hidden', 'false');
   chatToggle.setAttribute('aria-expanded', 'true');
   chatInput.focus();
+
+  if (conversationHistory.length === 0) {
+    renderGoalChips();
+  }
 }
 
 function closeChat() {
@@ -74,11 +78,10 @@ navLinks.forEach(function (link) {
   });
 });
 
-chatForm.addEventListener('submit', async function (event) {
-  event.preventDefault();
-  const text = chatInput.value.trim();
-  if (!text) return;
-
+// Shared by the form submit and the goal chips / inline CTA buttons, so every
+// entry point into the chat goes through the same request/render logic.
+async function sendChatMessage(text) {
+  removeGoalChips();
   addMessage(text, 'user');
   chatInput.value = '';
 
@@ -109,140 +112,228 @@ chatForm.addEventListener('submit', async function (event) {
     conversationHistory = Array.isArray(data.conversationHistory)
       ? truncateHistory(data.conversationHistory, MAX_HISTORY)
       : conversationHistory;
+
+    renderActions(Array.isArray(data.actions) ? data.actions : []);
   } catch (error) {
     typingBubble.remove();
     addMessage(NETWORK_ERROR_REPLY, 'bot');
   }
+}
+
+chatForm.addEventListener('submit', function (event) {
+  event.preventDefault();
+  const text = chatInput.value.trim();
+  if (!text) return;
+  sendChatMessage(text);
 });
 
-// ---------- Meal plan calculator ----------
+// ---------- AI Nutritionist welcome: goal chips on first open ----------
+let hasShownGoalChips = false;
+
+const GOAL_CHIP_OPTIONS = [
+  { emoji: '🎯', label: 'Weight Loss / Fat Loss', message: "I'd like a weight loss / fat loss meal plan." },
+  { emoji: '💪', label: 'Muscle Building / Bulk', message: "I'd like a muscle building / bulk meal plan." },
+  { emoji: '⚖️', label: 'Maintain Health / Clean Eating', message: "I'd like a maintenance / clean eating meal plan." },
+];
+
+function removeGoalChips() {
+  const existing = chatMessages.querySelector('.chat-chips');
+  if (existing) existing.remove();
+}
+
+function renderGoalChips() {
+  if (hasShownGoalChips) return;
+  hasShownGoalChips = true;
+
+  addMessage("Hi! I'm your AI Nutritionist 🥗 What's your goal today?", 'bot');
+
+  const chipsWrap = document.createElement('div');
+  chipsWrap.className = 'chat-chips';
+  chipsWrap.setAttribute('role', 'group');
+  chipsWrap.setAttribute('aria-label', 'Choose your fitness goal');
+
+  GOAL_CHIP_OPTIONS.forEach(function (option) {
+    const chip = document.createElement('button');
+    chip.type = 'button';
+    chip.className = 'chat-chip';
+    chip.textContent = option.emoji + ' ' + option.label;
+    chip.addEventListener('click', function () {
+      sendChatMessage(option.message);
+    });
+    chipsWrap.appendChild(chip);
+  });
+
+  chatMessages.appendChild(chipsWrap);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+// ---------- Inline chat CTA buttons (from backend `actions`, never raw model HTML) ----------
+function renderActions(actions) {
+  actions.forEach(function (action) {
+    if (action.type === 'add_plan_cta') {
+      renderAddPlanCta(action);
+    } else if (action.type === 'whatsapp_cta') {
+      renderWhatsappCta(action);
+    }
+  });
+}
+
+function renderAddPlanCta(action) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'chat-cta-wrap';
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'chat-cta chat-cta--primary';
+  btn.textContent = action.label;
+
+  btn.addEventListener('click', async function () {
+    btn.disabled = true;
+    btn.textContent = 'Adding…';
+
+    try {
+      const response = await fetch('/api/cart/add-plan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ itemIds: action.itemIds }),
+      });
+      const data = await response.json().catch(function () {
+        return null;
+      });
+
+      if (!response.ok || !data || !data.success) {
+        btn.disabled = false;
+        btn.textContent = action.label;
+        addMessage((data && data.error) || 'Could not add the plan to your order. Please try again.', 'bot');
+        return;
+      }
+
+      wrapper.remove();
+      addMessage('✅ Added your 3-day plan to the order. Subtotal so far: ' + data.order.currency + ' ' + data.order.subtotal.toLocaleString() + '.', 'bot');
+    } catch (error) {
+      btn.disabled = false;
+      btn.textContent = action.label;
+      addMessage(NETWORK_ERROR_REPLY, 'bot');
+    }
+  });
+
+  wrapper.appendChild(btn);
+  chatMessages.appendChild(wrapper);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+function renderWhatsappCta(action) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'chat-cta-wrap';
+
+  const link = document.createElement('a');
+  link.className = 'chat-cta chat-cta--whatsapp';
+  link.href = action.url;
+  link.target = '_blank';
+  link.rel = 'noopener noreferrer';
+  link.textContent = action.label;
+
+  wrapper.appendChild(link);
+  chatMessages.appendChild(wrapper);
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+// ---------- Meal Prep Subscriptions ----------
 // Reads static plan config from the backend and computes totals client-side —
 // no LLM call involved in browsing or pricing a plan.
 const PLANS_ENDPOINT = '/api/subscriptions';
-const planTabs = document.querySelectorAll('.plan-tab');
-const planDurationOptionsEl = document.getElementById('plan-duration-options');
-const planItemsOptionsEl = document.getElementById('plan-items-options');
-const planPerDayEl = document.getElementById('plan-per-day');
-const planDurationDisplayEl = document.getElementById('plan-duration-display');
-const planTotalEl = document.getElementById('plan-total');
-const planWhatsappBtn = document.getElementById('plan-whatsapp-btn');
+const subscriptionGrid = document.getElementById('subscription-grid');
 const planStatusEl = document.getElementById('plan-status');
 
-let subscriptionData = null;
-let selectedPlanType = 'weekly';
-let selectedDuration = null;
-let selectedItemIds = new Set();
+// The 3 showcase durations, mapped onto the real weekly/monthly plan data
+// (6/7-day weekly, 30-day monthly) — every price still comes from the API.
+const SHOWCASE_PLANS = [
+  { planType: 'weekly', duration: 6, title: '6-Day Weekly Plan', note: 'Delivered 6 days a week — Monday through Saturday.' },
+  { planType: 'weekly', duration: 7, title: '7-Day Weekly Plan', note: 'Full 7-day coverage, delivered every day of the week.' },
+  { planType: 'monthly', duration: 30, title: '30-Day Monthly Plan', note: 'A full month of daily deliveries — our best value for long-term consistency.' },
+];
 
-function findPlan(planType) {
-  return subscriptionData.plans.find(function (plan) { return plan.planType === planType; });
+function average(numbers) {
+  return Math.round(numbers.reduce(function (sum, n) { return sum + n; }, 0) / numbers.length);
 }
 
-function renderPlanDurations() {
-  const plan = findPlan(selectedPlanType);
-  planDurationOptionsEl.innerHTML = '';
+function buildSubscriptionCard(data, config) {
+  const plan = data.plans.find(function (p) { return p.planType === config.planType; });
+  const durationOption = plan.durationOptions.find(function (option) { return option.duration === config.duration; });
+  const currency = data.currency;
 
-  plan.durationOptions.forEach(function (option) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'plan-duration-btn' + (option.duration === selectedDuration ? ' active' : '');
-    btn.textContent = option.duration + ' Days';
-    btn.addEventListener('click', function () {
-      selectedDuration = option.duration;
-      renderPlanDurations();
-      updatePlanSummary();
-    });
-    planDurationOptionsEl.appendChild(btn);
-  });
-}
+  const calories = data.eligibleItems.map(function (item) { return item.calories; }).filter(function (v) { return typeof v === 'number'; });
+  const protein = data.eligibleItems.map(function (item) { return item.protein; }).filter(function (v) { return typeof v === 'number'; });
 
-function renderPlanItems() {
-  planItemsOptionsEl.innerHTML = '';
+  const message = "Hi! I'd like to sign up for The Trim Spoon " + config.title + ' (' + config.duration +
+    ' days) — ' + currency + ' ' + durationOption.total + '.';
+  const whatsappUrl = 'https://wa.me/' + data.whatsappNumber + '?text=' + encodeURIComponent(message);
 
-  subscriptionData.eligibleItems.forEach(function (item) {
-    const label = document.createElement('label');
-    label.className = 'plan-item-option';
+  const card = document.createElement('article');
+  card.className = 'subscription-card';
 
-    const checkbox = document.createElement('input');
-    checkbox.type = 'checkbox';
-    checkbox.checked = selectedItemIds.has(item.itemId);
-    checkbox.addEventListener('change', function () {
-      if (checkbox.checked) {
-        selectedItemIds.add(item.itemId);
-      } else {
-        selectedItemIds.delete(item.itemId);
-      }
-      updatePlanSummary();
-    });
+  const title = document.createElement('h3');
+  title.className = 'subscription-card-title';
+  title.textContent = config.title;
 
-    label.appendChild(checkbox);
-    label.append(' ' + item.name);
-    planItemsOptionsEl.appendChild(label);
-  });
-}
+  const note = document.createElement('p');
+  note.className = 'subscription-card-note';
+  note.textContent = config.note;
 
-function updatePlanSummary() {
-  const plan = findPlan(selectedPlanType);
-  const durationOption = plan.durationOptions.find(function (option) { return option.duration === selectedDuration; });
-  const currency = subscriptionData.currency;
-
-  planPerDayEl.textContent = currency + ' ' + subscriptionData.perDayPrice.toLocaleString();
-  planDurationDisplayEl.textContent = selectedDuration + ' days';
-  planTotalEl.textContent = currency + ' ' + durationOption.total.toLocaleString();
-
-  const chosenNames = subscriptionData.eligibleItems
-    .filter(function (item) { return selectedItemIds.has(item.itemId); })
-    .map(function (item) { return item.name; });
-
-  const rotationText = chosenNames.length > 0
-    ? ' Preferred platters: ' + chosenNames.join(', ') + '.'
+  const macros = document.createElement('p');
+  macros.className = 'subscription-card-macros';
+  macros.textContent = calories.length > 0
+    ? 'Platters average ~' + average(calories) + ' kcal & ' + average(protein) + 'g protein each'
     : '';
 
-  const message = "Hi! I'd like to sign up for The Trim Spoon " + plan.label + ' (' + selectedDuration +
-    ' days) — ' + currency + ' ' + durationOption.total + '.' + rotationText;
+  const price = document.createElement('div');
+  price.className = 'subscription-card-price';
 
-  planWhatsappBtn.href = 'https://wa.me/' + subscriptionData.whatsappNumber + '?text=' + encodeURIComponent(message);
+  const total = document.createElement('span');
+  total.className = 'subscription-card-total';
+  total.textContent = currency + ' ' + durationOption.total.toLocaleString();
+
+  const perDay = document.createElement('span');
+  perDay.className = 'subscription-card-per-day';
+  perDay.textContent = currency + ' ' + data.perDayPrice.toLocaleString() + ' / day × ' + config.duration + ' days';
+
+  price.appendChild(total);
+  price.appendChild(perDay);
+
+  const btn = document.createElement('a');
+  btn.className = 'btn btn-primary subscription-card-btn';
+  btn.href = whatsappUrl;
+  btn.target = '_blank';
+  btn.rel = 'noopener noreferrer';
+  btn.setAttribute('aria-label', 'Subscribe to the ' + config.title + ' via WhatsApp');
+  btn.textContent = 'Subscribe via WhatsApp';
+
+  card.appendChild(title);
+  card.appendChild(note);
+  if (macros.textContent) card.appendChild(macros);
+  card.appendChild(price);
+  card.appendChild(btn);
+
+  return card;
 }
-
-function selectPlanType(planType) {
-  selectedPlanType = planType;
-  const plan = findPlan(planType);
-  selectedDuration = plan.durationOptions[0].duration;
-
-  planTabs.forEach(function (tab) {
-    const isActive = tab.dataset.plan === planType;
-    tab.classList.toggle('active', isActive);
-    tab.setAttribute('aria-selected', String(isActive));
-  });
-
-  renderPlanDurations();
-  updatePlanSummary();
-}
-
-planTabs.forEach(function (tab) {
-  tab.addEventListener('click', function () {
-    selectPlanType(tab.dataset.plan);
-  });
-});
 
 async function loadSubscriptionPlans() {
   try {
     const response = await fetch(PLANS_ENDPOINT);
     if (!response.ok) throw new Error('Failed to load plans');
 
-    subscriptionData = await response.json();
-    selectedDuration = findPlan(selectedPlanType).durationOptions[0].duration;
-    selectedItemIds = new Set(subscriptionData.eligibleItems.map(function (item) { return item.itemId; }));
-
-    renderPlanDurations();
-    renderPlanItems();
-    updatePlanSummary();
+    const data = await response.json();
+    subscriptionGrid.innerHTML = '';
+    SHOWCASE_PLANS.forEach(function (config) {
+      subscriptionGrid.appendChild(buildSubscriptionCard(data, config));
+    });
   } catch (error) {
     planStatusEl.textContent = 'Could not load meal plans right now. Please try again later.';
     planStatusEl.hidden = false;
   }
 }
 
-if (planTabs.length > 0) {
+if (subscriptionGrid) {
   loadSubscriptionPlans();
 }
 
@@ -266,3 +357,74 @@ document.querySelectorAll('.flip-card').forEach(function (card) {
     }
   });
 });
+
+// ---------- Macro goal filter ----------
+const goalPills = document.querySelectorAll('.goal-pill');
+// General fitness-guideline daily protein target (grams) for the stated calorie
+// goal — informational only, not tied to any individual customer's real intake.
+const GOAL_PROTEIN_TARGETS = { cut: 140, balanced: 120, bulk: 160 };
+
+function applyGoalFilter(goal) {
+  document.querySelectorAll('#power-platters .menu-card[data-category]').forEach(function (card) {
+    const badge = card.querySelector('.goal-match-badge');
+
+    if (goal === 'all') {
+      card.classList.remove('goal-dim', 'goal-match');
+      if (badge) {
+        badge.hidden = true;
+        badge.textContent = '';
+      }
+      return;
+    }
+
+    const matches = card.dataset.category === goal;
+    card.classList.toggle('goal-match', matches);
+    card.classList.toggle('goal-dim', !matches);
+
+    if (!badge) return;
+
+    if (matches) {
+      const protein = Number(card.dataset.protein);
+      const target = GOAL_PROTEIN_TARGETS[goal];
+      const pct = Math.round((protein / target) * 100);
+      badge.textContent = 'Provides ' + pct + '% of daily protein target';
+      badge.hidden = false;
+    } else {
+      badge.hidden = true;
+      badge.textContent = '';
+    }
+  });
+}
+
+function selectGoalPill(pill) {
+  goalPills.forEach(function (p) {
+    const isSelected = p === pill;
+    p.classList.toggle('active', isSelected);
+    p.setAttribute('aria-checked', String(isSelected));
+    p.tabIndex = isSelected ? 0 : -1;
+  });
+  pill.focus();
+  applyGoalFilter(pill.dataset.goal);
+}
+
+goalPills.forEach(function (pill, index) {
+  pill.addEventListener('click', function () {
+    selectGoalPill(pill);
+  });
+
+  pill.addEventListener('keydown', function (event) {
+    if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+      event.preventDefault();
+      selectGoalPill(goalPills[(index + 1) % goalPills.length]);
+    } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+      event.preventDefault();
+      selectGoalPill(goalPills[(index - 1 + goalPills.length) % goalPills.length]);
+    }
+  });
+});
+
+// ---------- Mobile quick-order bar ----------
+const mobileNutritionistBtn = document.getElementById('mobile-nutritionist-btn');
+if (mobileNutritionistBtn) {
+  mobileNutritionistBtn.addEventListener('click', openChat);
+}

@@ -267,6 +267,24 @@ const TOOLS = [
       },
       required: ['planType', 'duration', 'dailyItemIds'],
     },
+  },
+  {
+    name: 'getGoalMealPlan',
+    description:
+      "Get a deterministic 3-day Power Platter combination for a fitness goal, with each day's real item name, calories, protein, and price plus 3-day totals. Use this whenever a customer states or picks a fitness goal (weight loss/cut, muscle gain/bulk, or maintenance/balanced) — never invent a meal plan or its macros/prices yourself.",
+    input_schema: {
+      type: 'object',
+      properties: {
+        goal: { type: 'string', enum: ['cut', 'bulk', 'balanced'], description: "'cut' for weight loss/fat loss, 'bulk' for muscle gain, 'balanced' for maintenance/clean eating." },
+      },
+      required: ['goal'],
+    },
+  },
+  {
+    name: 'getWhatsAppOrderLink',
+    description:
+      "Build a pre-filled WhatsApp link listing the items currently in the order (from addItemToCart), for a customer who wants to complete checkout on WhatsApp instead of in this chat. Rejects if the cart is empty. The subtotal it returns does not include tax or delivery — mention it as a subtotal, not the final total.",
+    input_schema: { type: 'object', properties: {} },
     cache_control: { type: 'ephemeral' },
   },
 ];
@@ -850,7 +868,12 @@ function getSubscriptionPlans() {
   return {
     currency: SUBSCRIPTIONS_DATA.currency,
     perDayPrice,
-    eligibleItems: eligibleItems.map((item) => ({ itemId: item.id, name: item.name })),
+    eligibleItems: eligibleItems.map((item) => ({
+      itemId: item.id,
+      name: item.name,
+      calories: item.nutrition ? item.nutrition.calories : null,
+      protein: item.nutrition ? item.nutrition.protein : null,
+    })),
     plans,
   };
 }
@@ -919,6 +942,73 @@ function getSubscriptionWhatsAppLink(input) {
   };
 }
 
+function getPowerPlatters() {
+  const category = MENU_DATA.categories.find((candidate) => candidate.id === 'power-platters');
+  return category ? category.items.filter((item) => item.available && item.nutrition) : [];
+}
+
+// Ranks real Power Platters for a fitness goal from their real nutrition data —
+// mirrors the on-page menu goal filter's classification, never invented.
+function scoreForGoal(item, goal) {
+  const { calories, protein } = item.nutrition;
+  const proteinDensity = (protein / calories) * 100; // g protein per 100 kcal
+  if (goal === 'cut') return proteinDensity; // leanest, most protein-dense first
+  if (goal === 'bulk') return calories + protein * 2; // highest calorie + protein first
+  return -Math.abs(calories - 425); // balanced: closest to the category's typical calorie range
+}
+
+function getGoalMealPlan(input) {
+  const { goal } = input || {};
+  if (!['cut', 'bulk', 'balanced'].includes(goal)) {
+    return { success: false, error: `"${goal}" is not a recognized goal. Use "cut", "bulk", or "balanced".` };
+  }
+
+  const platters = getPowerPlatters();
+  const chosen = [...platters].sort((a, b) => scoreForGoal(b, goal) - scoreForGoal(a, goal)).slice(0, 3);
+
+  const days = chosen.map((item, index) => ({
+    day: index + 1,
+    itemId: item.id,
+    name: item.name,
+    calories: item.nutrition.calories,
+    protein: item.nutrition.protein,
+    price: item.price,
+  }));
+
+  const totals = days.reduce(
+    (sum, day) => ({
+      calories: sum.calories + day.calories,
+      protein: sum.protein + day.protein,
+      price: sum.price + day.price,
+    }),
+    { calories: 0, protein: 0, price: 0 }
+  );
+
+  return { success: true, goal, currency: FEES_DATA.currency, days, totals };
+}
+
+// Reads the real, current cart (added via addItemToCart) — never a plan the model
+// invents. Subtotal only: matches getOrderTotal's own tax/delivery disclaimer.
+function getWhatsAppOrderLink(orderState) {
+  if (!orderState.items || orderState.items.length === 0) {
+    return { success: false, error: 'The cart is empty — add items with addItemToCart first.' };
+  }
+
+  const totals = getOrderTotal(orderState);
+  const itemsText = orderState.items.map((lineItem) => `${lineItem.quantity}x ${lineItem.name}`).join(', ');
+  const message = `Hi The Trim Spoon, I'd like to order: ${itemsText}`;
+
+  return {
+    success: true,
+    whatsappNumber: SUBSCRIPTIONS_DATA.whatsappNumber,
+    message,
+    url: `https://wa.me/${SUBSCRIPTIONS_DATA.whatsappNumber}?text=${encodeURIComponent(message)}`,
+    subtotal: totals.subtotal,
+    currency: totals.currency,
+    note: 'subtotal only — does not include tax or delivery fee',
+  };
+}
+
 function runTool(name, input, orderState) {
   if (name === 'getMenu') return getMenu();
   if (name === 'addItemToCart') return addItemToCart(orderState, input);
@@ -937,6 +1027,8 @@ function runTool(name, input, orderState) {
   if (name === 'getSubscriptionPlans') return getSubscriptionPlans();
   if (name === 'calculateSubscriptionPrice') return calculateSubscriptionPrice(input);
   if (name === 'getSubscriptionWhatsAppLink') return getSubscriptionWhatsAppLink(input);
+  if (name === 'getGoalMealPlan') return getGoalMealPlan(input);
+  if (name === 'getWhatsAppOrderLink') return getWhatsAppOrderLink(orderState);
   throw new Error(`Unknown tool: ${name}`);
 }
 
@@ -1064,6 +1156,11 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
 
   const messages = [...history, { role: 'user', content: message }];
 
+  // Structured UI actions (chips/CTA buttons) are derived only from real tool
+  // results below, never from the model's text — it never controls markup.
+  let lastGoalMealPlan = null;
+  let lastWhatsAppOrderLink = null;
+
   try {
     let response = await client.messages.create({
       model: 'claude-sonnet-5',
@@ -1084,11 +1181,12 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
 
       const toolResults = response.content
         .filter((block) => block.type === 'tool_use')
-        .map((block) => ({
-          type: 'tool_result',
-          tool_use_id: block.id,
-          content: JSON.stringify(runTool(block.name, block.input, req.orderState)),
-        }));
+        .map((block) => {
+          const result = runTool(block.name, block.input, req.orderState);
+          if (block.name === 'getGoalMealPlan' && result.success) lastGoalMealPlan = result;
+          if (block.name === 'getWhatsAppOrderLink' && result.success) lastWhatsAppOrderLink = result;
+          return { type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(result) };
+        });
 
       messages.push({ role: 'user', content: toolResults });
 
@@ -1102,10 +1200,28 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
     }
 
     const textBlock = response.content.find((block) => block.type === 'text');
+    const actions = [];
+
+    if (lastGoalMealPlan) {
+      actions.push({
+        type: 'add_plan_cta',
+        label: 'Add 3-Day Plan to Order',
+        itemIds: lastGoalMealPlan.days.map((day) => day.itemId),
+      });
+    }
+
+    if (lastWhatsAppOrderLink) {
+      actions.push({
+        type: 'whatsapp_cta',
+        label: '📱 Complete Order on WhatsApp',
+        url: lastWhatsAppOrderLink.url,
+      });
+    }
 
     res.json({
       reply: textBlock ? textBlock.text : '',
       conversationHistory: [...messages, { role: 'assistant', content: response.content }],
+      actions,
     });
   } catch (error) {
     if (error instanceof Anthropic.AuthenticationError) {
@@ -1129,6 +1245,33 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
 // directly and computes on the client, without spending any LLM tokens.
 app.get('/api/subscriptions', (req, res) => {
   res.json({ ...getSubscriptionPlans(), whatsappNumber: SUBSCRIPTIONS_DATA.whatsappNumber });
+});
+
+const MAX_PLAN_ITEMS = 10;
+
+// Deterministic cart mutation for the chat's "Add 3-Day Plan to Order" CTA — reuses
+// addItemToCart (same validation/pricing) so clicking it never costs an LLM call.
+app.post('/api/cart/add-plan', (req, res) => {
+  const { itemIds } = req.body || {};
+
+  if (!Array.isArray(itemIds) || itemIds.length === 0 || itemIds.length > MAX_PLAN_ITEMS) {
+    return res.status(400).json({ error: `itemIds must be a non-empty array of at most ${MAX_PLAN_ITEMS} item ids.` });
+  }
+
+  if (itemIds.some((id) => typeof id !== 'string' || !id.trim())) {
+    return res.status(400).json({ error: 'itemIds must all be non-empty strings.' });
+  }
+
+  const added = [];
+  for (const itemId of itemIds) {
+    const result = addItemToCart(req.orderState, { itemId });
+    if (!result.success) {
+      return res.status(400).json({ error: result.error || result.message || `Could not add "${itemId}".` });
+    }
+    added.push(result.addedItem);
+  }
+
+  res.json({ success: true, added, order: getOrderTotal(req.orderState) });
 });
 
 const ORDER_STATUS_SEQUENCE = ['NEW', 'PREPARING', 'READY', 'COMPLETED'];

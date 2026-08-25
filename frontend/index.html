@@ -34,7 +34,7 @@
           <li><a href="#top">Home</a></li>
           <li><a href="#about">About</a></li>
           <li><a href="#menu">Menu</a></li>
-          <li><a href="#plans">Meal Plans</a></li>
+          <li><a href="#plans">Subscriptions</a></li>
           <li><a href="#why-us">Why Us</a></li>
           <li><a href="#hours">Hours</a></li>
         </ul>
@@ -82,7 +82,17 @@
 
         <p class="delivery-notice delivery-notice--primary">Note: Prices listed on the menu do not include delivery charges. Delivery fees vary based on your location.</p>
 
-        <div class="menu-subsection">
+        <div class="goal-filter">
+          <h3 class="goal-filter-title">Find platters for your goal</h3>
+          <div class="goal-pills" role="radiogroup" aria-label="Filter Power Platters by fitness goal">
+            <button type="button" class="goal-pill active" role="radio" aria-checked="true" tabindex="0" data-goal="all">All Meals</button>
+            <button type="button" class="goal-pill" role="radio" aria-checked="false" tabindex="-1" data-goal="cut">Weight Loss / Cut <span class="goal-pill-target">1500 kcal target</span></button>
+            <button type="button" class="goal-pill" role="radio" aria-checked="false" tabindex="-1" data-goal="balanced">Balanced / Maintenance <span class="goal-pill-target">2000 kcal target</span></button>
+            <button type="button" class="goal-pill" role="radio" aria-checked="false" tabindex="-1" data-goal="bulk">Muscle Gain / Bulk <span class="goal-pill-target">2500 kcal target</span></button>
+          </div>
+        </div>
+
+        <div class="menu-subsection" id="power-platters">
           <div class="menu-subsection-header">
             <h3 class="section-banner">Power <span class="accent">Platters</span></h3>
             <span class="price-banner">Rs. 899</span>
@@ -90,7 +100,7 @@
 
           <div class="menu-grid">
 
-            <article class="menu-card flip-card" tabindex="0" role="button" aria-pressed="false" aria-label="Grilled Chicken Crunch Wrap. Tap to see nutrition facts.">
+            <article class="menu-card flip-card" tabindex="0" role="button" aria-pressed="false" aria-label="Grilled Chicken Crunch Wrap. Tap to see nutrition facts." data-calories="430" data-protein="35" data-carbs="32" data-fat="11" data-category="balanced">
               <div class="flip-card-inner">
                 <div class="flip-card-front">
                   <img class="menu-card-image" src="images/menu/grilled-chicken-crunch-wrap.jpg" alt="Grilled chicken crunch wrap sliced in half, showing juicy grilled chicken and fresh vegetables">
@@ -99,6 +109,7 @@
                   <p class="description">Two soft tortilla wraps filled with juicy grilled chicken, fresh vegetables &amp; homemade dressing.</p>
                   <div class="menu-card-tags"><span class="tag">High Protein</span><span class="tag">Contains Gluten</span></div>
                   <p class="menu-card-price">Rs. 899</p>
+                  <p class="goal-match-badge" hidden></p>
                 </div>
                 <div class="flip-card-back">
                   <h3>Nutrition Facts</h3>
@@ -113,7 +124,7 @@
               </div>
             </article>
 
-            <article class="menu-card flip-card" tabindex="0" role="button" aria-pressed="false" aria-label="Healthy Steamed Chicken Tikka and Veggie Platter. Tap to see nutrition facts.">
+            <article class="menu-card flip-card" tabindex="0" role="button" aria-pressed="false" aria-label="Healthy Steamed Chicken Tikka and Veggie Platter. Tap to see nutrition facts." data-calories="360" data-protein="36" data-carbs="18" data-fat="8" data-category="cut">
               <div class="flip-card-inner">
                 <div class="flip-card-front">
                   <img class="menu-card-image" src="images/menu/chicken-tikka-veggie-platter.jpg" alt="Steamed chicken tikka leg served with steamed vegetables and fresh salad">
@@ -122,6 +133,7 @@
                   <p class="description">Steamed chicken tikka leg served with steamed vegetables and fresh salad.</p>
                   <div class="menu-card-tags"><span class="tag">High Protein</span></div>
                   <p class="menu-card-price">Rs. 899</p>
+                  <p class="goal-match-badge" hidden></p>
                 </div>
                 <div class="flip-card-back">
                   <h3>Nutrition Facts</h3>
@@ -136,7 +148,7 @@
               </div>
             </article>
 
-            <article class="menu-card flip-card" tabindex="0" role="button" aria-pressed="false" aria-label="Chicken and Brown Rice Platter. Tap to see nutrition facts.">
+            <article class="menu-card flip-card" tabindex="0" role="button" aria-pressed="false" aria-label="Chicken and Brown Rice Platter. Tap to see nutrition facts." data-calories="480" data-protein="42" data-carbs="35" data-fat="12" data-category="bulk">
               <div class="flip-card-inner">
                 <div class="flip-card-front">
                   <img class="menu-card-image" src="images/menu/chicken-brown-rice-platter.jpg" alt="Grilled chicken breast with a serving of brown rice and fresh garden salad">
@@ -145,6 +157,7 @@
                   <p class="description">Grilled chicken breast, wholesome brown rice and fresh garden salad.</p>
                   <div class="menu-card-tags"><span class="tag">High Protein</span></div>
                   <p class="menu-card-price">Rs. 899</p>
+                  <p class="goal-match-badge" hidden></p>
                 </div>
                 <div class="flip-card-back">
                   <h3>Nutrition Facts</h3>
@@ -159,7 +172,7 @@
               </div>
             </article>
 
-            <article class="menu-card flip-card" tabindex="0" role="button" aria-pressed="false" aria-label="Smoked Chapli Kabab Platter. Tap to see nutrition facts.">
+            <article class="menu-card flip-card" tabindex="0" role="button" aria-pressed="false" aria-label="Smoked Chapli Kabab Platter. Tap to see nutrition facts." data-calories="480" data-protein="32" data-carbs="30" data-fat="18" data-category="bulk">
               <div class="flip-card-inner">
                 <div class="flip-card-front">
                   <img class="menu-card-image" src="images/menu/smoked-chapli-kabab-platter.jpg" alt="Two smoked chicken chapli kababs served with boiled eggs and fresh salad">
@@ -168,6 +181,7 @@
                   <p class="description">Two smoked chicken chapli kababs served with boiled eggs and fresh salad.</p>
                   <div class="menu-card-tags"><span class="tag">High Protein</span><span class="tag">Contains Egg</span></div>
                   <p class="menu-card-price">Rs. 899</p>
+                  <p class="goal-match-badge" hidden></p>
                 </div>
                 <div class="flip-card-back">
                   <h3>Nutrition Facts</h3>
@@ -182,7 +196,7 @@
               </div>
             </article>
 
-            <article class="menu-card flip-card" tabindex="0" role="button" aria-pressed="false" aria-label="Smoked Chicken Keema Platter. Tap to see nutrition facts.">
+            <article class="menu-card flip-card" tabindex="0" role="button" aria-pressed="false" aria-label="Smoked Chicken Keema Platter. Tap to see nutrition facts." data-calories="410" data-protein="36" data-carbs="28" data-fat="14" data-category="balanced">
               <div class="flip-card-inner">
                 <div class="flip-card-front">
                   <img class="menu-card-image" src="images/menu/smoked-chicken-keema-platter.jpg" alt="Smoked chicken keema served with multigrain bread and fresh salad">
@@ -191,6 +205,7 @@
                   <p class="description">Smoked chicken keema served with multigrain bread and fresh salad.</p>
                   <div class="menu-card-tags"><span class="tag">High Protein</span><span class="tag">Contains Gluten</span></div>
                   <p class="menu-card-price">Rs. 899</p>
+                  <p class="goal-match-badge" hidden></p>
                 </div>
                 <div class="flip-card-back">
                   <h3>Nutrition Facts</h3>
@@ -205,7 +220,7 @@
               </div>
             </article>
 
-            <article class="menu-card flip-card" tabindex="0" role="button" aria-pressed="false" aria-label="Grilled Seekh Kabab and Daal Platter. Tap to see nutrition facts.">
+            <article class="menu-card flip-card" tabindex="0" role="button" aria-pressed="false" aria-label="Grilled Seekh Kabab and Daal Platter. Tap to see nutrition facts." data-calories="440" data-protein="36" data-carbs="45" data-fat="12" data-category="bulk">
               <div class="flip-card-inner">
                 <div class="flip-card-front">
                   <img class="menu-card-image" src="images/menu/grilled-seekh-kabab-daal-platter.jpg" alt="Two grilled chicken seekh kababs with yellow daal, multigrain roti and salad">
@@ -214,6 +229,7 @@
                   <p class="description">Two grilled chicken seekh kababs, yellow daal, multigrain roti and salad.</p>
                   <div class="menu-card-tags"><span class="tag">High Protein</span><span class="tag">Contains Gluten</span></div>
                   <p class="menu-card-price">Rs. 899</p>
+                  <p class="goal-match-badge" hidden></p>
                 </div>
                 <div class="flip-card-back">
                   <h3>Nutrition Facts</h3>
@@ -228,7 +244,7 @@
               </div>
             </article>
 
-            <article class="menu-card flip-card" tabindex="0" role="button" aria-pressed="false" aria-label="Double Grilled Chicken Platter. Tap to see nutrition facts.">
+            <article class="menu-card flip-card" tabindex="0" role="button" aria-pressed="false" aria-label="Double Grilled Chicken Platter. Tap to see nutrition facts." data-calories="420" data-protein="40" data-carbs="20" data-fat="12" data-category="cut">
               <div class="flip-card-inner">
                 <div class="flip-card-front">
                   <img class="menu-card-image" src="images/menu/double-grilled-chicken-platter.jpg" alt="Double portion of grilled chicken breast served with stir-fried vegetables">
@@ -237,6 +253,7 @@
                   <p class="description">Double grilled chicken breast served with stir-fried vegetables.</p>
                   <div class="menu-card-tags"><span class="tag">High Protein</span></div>
                   <p class="menu-card-price">Rs. 899</p>
+                  <p class="goal-match-badge" hidden></p>
                 </div>
                 <div class="flip-card-back">
                   <h3>Nutrition Facts</h3>
@@ -414,41 +431,16 @@
     <section id="plans" class="plans">
       <div class="container">
         <div class="menu-banner-wrap">
-          <h2 class="menu-banner">Meal Plans</h2>
+          <h2 class="menu-banner">Meal Prep Subscriptions</h2>
         </div>
 
         <p class="plans-intro">
-          One Power Platter a day, delivered on your schedule. Pick weekly or
-          monthly, choose your rotation, and check out on WhatsApp.
+          One Power Platter a day, delivered on your schedule. Pick the plan
+          that fits your week, then subscribe on WhatsApp.
         </p>
 
-        <div class="plans-tabs" role="tablist">
-          <button type="button" class="plan-tab active" data-plan="weekly" role="tab" aria-selected="true">Weekly</button>
-          <button type="button" class="plan-tab" data-plan="monthly" role="tab" aria-selected="false">Monthly</button>
-        </div>
-
-        <div class="plans-calculator">
-          <div class="plan-field">
-            <span class="plan-field-label">Duration</span>
-            <div id="plan-duration-options" class="plan-duration-options"></div>
-          </div>
-
-          <div class="plan-field">
-            <span class="plan-field-label">Platters in rotation</span>
-            <div id="plan-items-options" class="plan-items-options"></div>
-          </div>
-
-          <div class="plan-summary">
-            <div class="plan-summary-row"><span>Per day</span><span id="plan-per-day">—</span></div>
-            <div class="plan-summary-row"><span>Duration</span><span id="plan-duration-display">—</span></div>
-            <div class="plan-summary-row plan-summary-total"><span>Total</span><span id="plan-total">—</span></div>
-          </div>
-
-          <a id="plan-whatsapp-btn" class="btn btn-primary plan-whatsapp-btn" href="#" target="_blank" rel="noopener noreferrer">
-            Order This Plan on WhatsApp
-          </a>
-          <p id="plan-status" class="plan-status" hidden></p>
-        </div>
+        <div id="subscription-grid" class="subscription-grid"></div>
+        <p id="plan-status" class="plan-status" hidden></p>
       </div>
     </section>
 
@@ -552,7 +544,7 @@
         <ul class="footer-links">
           <li><a href="#about">About</a></li>
           <li><a href="#menu">Menu</a></li>
-          <li><a href="#plans">Meal Plans</a></li>
+          <li><a href="#plans">Subscriptions</a></li>
           <li><a href="#why-us">Why Us</a></li>
           <li><a href="#hours">Hours</a></li>
         </ul>
@@ -583,6 +575,21 @@
         <button type="submit" class="chat-send" aria-label="Send message">Send</button>
       </form>
     </section>
+  </div>
+
+  <div class="mobile-order-bar" role="toolbar" aria-label="Quick order actions">
+    <button type="button" id="mobile-nutritionist-btn" class="mobile-order-btn mobile-order-btn--nutritionist" aria-label="Open AI Nutritionist chat" aria-controls="chat-window">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M12 3v3M12 18v3M5.6 5.6l2.1 2.1M16.3 16.3l2.1 2.1M3 12h3M18 12h3M5.6 18.4l2.1-2.1M16.3 7.7l2.1-2.1"></path>
+      </svg>
+      AI Nutritionist
+    </button>
+    <a href="https://wa.me/923365402542?text=Hi!%20I%27d%20like%20to%20place%20an%20order." target="_blank" rel="noopener noreferrer" class="mobile-order-btn mobile-order-btn--whatsapp" aria-label="Order via WhatsApp">
+      <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor" aria-hidden="true">
+        <path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5.1-1.3A10 10 0 1 0 12 2zm0 18a8 8 0 0 1-4.1-1.1l-.3-.2-3 .8.8-2.9-.2-.3A8 8 0 1 1 12 20zm4.4-5.8c-.2-.1-1.4-.7-1.6-.8-.2-.1-.4-.1-.6.1-.2.2-.6.8-.8 1-.1.2-.3.2-.5.1-.2-.1-1-.4-1.9-1.2-.7-.6-1.2-1.4-1.3-1.6-.1-.2 0-.4.1-.5.1-.1.2-.3.4-.4.1-.1.2-.2.2-.4.1-.1 0-.3 0-.4-.1-.1-.6-1.4-.8-1.9-.2-.5-.4-.4-.6-.4h-.5c-.2 0-.4.1-.6.3-.2.2-.8.8-.8 1.9 0 1.1.8 2.2.9 2.3.1.2 1.6 2.5 4 3.5.6.2 1 .4 1.3.5.6.2 1.1.1 1.5.1.5-.1 1.4-.6 1.6-1.1.2-.5.2-1 .1-1.1-.1-.1-.2-.2-.4-.3z"></path>
+      </svg>
+      Order via WhatsApp
+    </a>
   </div>
 
   <script src="app.js"></script>
