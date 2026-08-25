@@ -62,7 +62,11 @@ ${JSON.stringify(MENU_DATA.hours)}
 
 Allergen disclaimer: ${MENU_DATA.allergenDisclaimer}
 
-Use the getMenu tool to look up menu items, prices, sizes, and options. Never invent menu items, prices, or hours not returned by the tool or listed above.`;
+Use the getMenu tool to look up menu items, prices, sizes, and options. Never invent menu items, prices, or hours not returned by the tool or listed above.
+
+## Delivery fees by city
+
+${JSON.stringify(FEES_DATA.deliveryFeesByCity)} (${FEES_DATA.currency}, fixed per order — not distance-based). Only these two cities are currently supported for delivery. If the customer's city isn't one of these two, or hasn't been given yet, ask them to confirm which one applies before calling setDeliveryDetails — never guess a city or apply a different fee. The actual delivery fee and total for an order always come from getOrderTotal, never calculated here.`;
 
 const CACHED_SYSTEM_PROMPT = [
   { type: 'text', text: FULL_SYSTEM_PROMPT, cache_control: { type: 'ephemeral' } },
@@ -186,13 +190,14 @@ const TOOLS = [
   {
     name: 'setDeliveryDetails',
     description:
-      "Record delivery order details: the customer's name, phone number, full delivery address, apartment/unit if applicable, and delivery instructions. Sets the order type to delivery. Only pass fields the customer actually gave you — never guess or fill in a field they didn't provide.",
+      "Record delivery order details: the customer's name, phone number, full delivery address, city, apartment/unit if applicable, and delivery instructions. Sets the order type to delivery. Only pass fields the customer actually gave you — never guess or fill in a field they didn't provide.",
     input_schema: {
       type: 'object',
       properties: {
         name: { type: 'string', description: "The customer's name for the delivery order." },
         phone: { type: 'string', description: "The customer's phone number." },
-        address: { type: 'string', description: 'Full delivery address (street, city, etc).' },
+        address: { type: 'string', description: 'Full delivery address (street, etc) — not including city.' },
+        city: { type: 'string', description: 'Delivery city, exactly as confirmed by the customer — must be "Rawalpindi" or "Islamabad", the only two currently supported.' },
         apartmentUnit: { type: 'string', description: 'Apartment or unit number, if applicable to the address.' },
         deliveryInstructions: { type: 'string', description: 'Delivery instructions, if the customer gave any (e.g. gate code, leave at door).' },
       },
@@ -645,8 +650,22 @@ function getOrderTotal(orderState) {
   const amountAfterDiscount = subtotal - discountAmount;
   const taxRate = FEES_DATA.taxRate;
   const tax = Math.round(amountAfterDiscount * taxRate);
-  const deliveryFee = orderState.orderType === 'delivery' ? FEES_DATA.deliveryFee : 0;
-  const total = amountAfterDiscount + tax + deliveryFee;
+
+  let deliveryFee = 0;
+  let deliveryFeeNote = null;
+
+  if (orderState.orderType === 'delivery') {
+    const city = orderState.customerDetails.city;
+    const cityFee = city ? FEES_DATA.deliveryFeesByCity[city] : undefined;
+    if (cityFee === undefined) {
+      deliveryFee = null;
+      deliveryFeeNote = `Delivery fee not yet determined — confirm with the customer whether they're in ${Object.keys(FEES_DATA.deliveryFeesByCity).join(' or ')} before stating a total.`;
+    } else {
+      deliveryFee = cityFee;
+    }
+  }
+
+  const total = deliveryFee === null ? null : amountAfterDiscount + tax + deliveryFee;
 
   return {
     currency: FEES_DATA.currency,
@@ -657,6 +676,7 @@ function getOrderTotal(orderState) {
     taxRate,
     tax,
     deliveryFee,
+    deliveryFeeNote,
     total,
     unavailableItems,
   };
@@ -666,12 +686,13 @@ function getOrderStatus(orderState) {
   const details = orderState.customerDetails;
 
   if (orderState.orderType === 'delivery') {
-    const missingRequiredFields = ['name', 'phone', 'address'].filter((field) => !details[field]);
+    const missingRequiredFields = ['name', 'phone', 'address', 'city'].filter((field) => !details[field]);
     return {
       orderType: 'delivery',
       customerName: details.name || null,
       phone: details.phone || null,
       address: details.address || null,
+      city: details.city || null,
       apartmentUnit: details.apartmentUnit || null,
       deliveryInstructions: details.deliveryInstructions || null,
       missingRequiredFields,
@@ -715,7 +736,7 @@ function setPickupDetails(orderState, input) {
 }
 
 function setDeliveryDetails(orderState, input) {
-  const { name, phone, address, apartmentUnit, deliveryInstructions } = input || {};
+  const { name, phone, address, city, apartmentUnit, deliveryInstructions } = input || {};
   const fields = { name, phone, address, apartmentUnit, deliveryInstructions };
 
   for (const [field, value] of Object.entries(fields)) {
@@ -724,6 +745,15 @@ function setDeliveryDetails(orderState, input) {
       return { success: false, error: `${field} must be a non-empty string.` };
     }
     orderState.customerDetails[field] = value.trim();
+  }
+
+  if (city !== undefined) {
+    const supportedCities = Object.keys(FEES_DATA.deliveryFeesByCity);
+    const matchedCity = supportedCities.find((candidate) => candidate.toLowerCase() === String(city).trim().toLowerCase());
+    if (!matchedCity) {
+      return { success: false, error: `city must be one of: ${supportedCities.join(', ')}.` };
+    }
+    orderState.customerDetails.city = matchedCity;
   }
 
   orderState.orderType = 'delivery';
@@ -735,6 +765,7 @@ function setDeliveryDetails(orderState, input) {
     customerName: details.name || null,
     phone: details.phone || null,
     address: details.address || null,
+    city: details.city || null,
     apartmentUnit: details.apartmentUnit || null,
     deliveryInstructions: details.deliveryInstructions || null,
   };
@@ -811,15 +842,37 @@ function finalizeOrder(orderState, input) {
   orderState.confirmed = true;
   orderState.status = 'confirmed';
 
-  return { success: true, order: currentSummary, orderId: savedOrder.orderId, timestamp: savedOrder.timestamp };
+  // Built server-side from the just-saved, already-validated summary — never from
+  // model-authored text — same safe-URL pattern as getWhatsAppOrderLink.
+  const itemsText = currentSummary.items.map((lineItem) => `${lineItem.quantity}x ${lineItem.name}`).join(', ');
+  const pricing = currentSummary.pricing;
+  const cityText = currentSummary.fulfillment.orderType === 'delivery' ? ` | City: ${currentSummary.fulfillment.city}` : '';
+  const confirmationMessage =
+    `Order Confirmation: ${itemsText} | Order ID: ${savedOrder.orderId}${cityText} | ` +
+    `Delivery: ${pricing.deliveryFee != null ? `${pricing.currency} ${pricing.deliveryFee}` : 'N/A'} | ` +
+    `Total: ${pricing.currency} ${pricing.total}`;
+
+  return {
+    success: true,
+    order: currentSummary,
+    orderId: savedOrder.orderId,
+    timestamp: savedOrder.timestamp,
+    whatsappConfirmation: {
+      message: confirmationMessage,
+      url: `https://wa.me/${SUBSCRIPTIONS_DATA.whatsappNumber}?text=${encodeURIComponent(confirmationMessage)}`,
+    },
+  };
 }
 
 // Orders are persisted to a local JSON file. This is for development/demo purposes
-// only — it assumes a single, long-lived filesystem. Serverless platforms (e.g. Vercel)
-// spin up ephemeral instances and do not guarantee writes to disk persist across
-// requests or deploys, so this storage approach is not suitable for production there;
-// a real database is required for production use.
-const ORDERS_FILE_PATH = path.resolve(__dirname, '..', 'data', 'orders.json');
+// only — it assumes a single, long-lived filesystem. On Vercel, every path except
+// /tmp is read-only at runtime, so writing to the repo's data/ directory there throws
+// EROFS and crashes order confirmation — /tmp is used instead when deployed there.
+// /tmp is ephemeral (wiped between cold starts, not shared across instances), so this
+// still isn't durable; a real database is required for production use.
+const ORDERS_FILE_PATH = process.env.VERCEL
+  ? path.join('/tmp', 'orders.json')
+  : path.resolve(__dirname, '..', 'data', 'orders.json');
 
 // orders.json holds real customer PII (name, phone, address) written at runtime, so it's
 // gitignored rather than committed — meaning a fresh clone won't have the file yet.
@@ -1171,6 +1224,7 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
   // results below, never from the model's text — it never controls markup.
   let lastGoalMealPlan = null;
   let lastWhatsAppOrderLink = null;
+  let lastFinalizedOrder = null;
 
   try {
     let response = await client.messages.create({
@@ -1196,6 +1250,7 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
           const result = runTool(block.name, block.input, req.orderState);
           if (block.name === 'getGoalMealPlan' && result.success) lastGoalMealPlan = result;
           if (block.name === 'getWhatsAppOrderLink' && result.success) lastWhatsAppOrderLink = result;
+          if (block.name === 'finalizeOrder' && result.success) lastFinalizedOrder = result;
           return { type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(result) };
         });
 
@@ -1226,6 +1281,14 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
         type: 'whatsapp_cta',
         label: '📱 Complete Order on WhatsApp',
         url: lastWhatsAppOrderLink.url,
+      });
+    }
+
+    if (lastFinalizedOrder) {
+      actions.push({
+        type: 'whatsapp_cta',
+        label: '📱 Send Order Confirmation on WhatsApp',
+        url: lastFinalizedOrder.whatsappConfirmation.url,
       });
     }
 

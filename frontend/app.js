@@ -50,10 +50,61 @@ function toggleChat() {
   }
 }
 
+// Renders a small, fixed formatting subset (**bold** and "• " bullets) that the
+// assistant's system prompt is instructed to use. Built entirely with textContent/
+// createElement — never innerHTML — so AI-generated text can never inject markup.
+function renderInlineBold(parent, lineText) {
+  const parts = lineText.split(/(\*\*[^*]+\*\*)/g).filter(Boolean);
+  parts.forEach(function (part) {
+    if (part.startsWith('**') && part.endsWith('**') && part.length > 4) {
+      const strong = document.createElement('strong');
+      strong.textContent = part.slice(2, -2);
+      parent.appendChild(strong);
+    } else {
+      parent.appendChild(document.createTextNode(part));
+    }
+  });
+}
+
+function renderFormattedText(bubble, text) {
+  const lines = text.split('\n');
+  let currentList = null;
+
+  lines.forEach(function (rawLine) {
+    const line = rawLine.trim();
+
+    if (!line) {
+      currentList = null;
+      return;
+    }
+
+    const bulletMatch = line.match(/^[•-]\s+(.*)$/);
+    if (bulletMatch) {
+      if (!currentList) {
+        currentList = document.createElement('ul');
+        bubble.appendChild(currentList);
+      }
+      const li = document.createElement('li');
+      renderInlineBold(li, bulletMatch[1]);
+      currentList.appendChild(li);
+      return;
+    }
+
+    currentList = null;
+    const p = document.createElement('p');
+    renderInlineBold(p, line);
+    bubble.appendChild(p);
+  });
+}
+
 function addMessage(text, sender) {
   const bubble = document.createElement('div');
   bubble.className = 'chat-bubble ' + sender;
-  bubble.textContent = text;
+  if (sender === 'bot') {
+    renderFormattedText(bubble, text);
+  } else {
+    bubble.textContent = text;
+  }
   chatMessages.appendChild(bubble);
   chatMessages.scrollTop = chatMessages.scrollHeight;
   return bubble;

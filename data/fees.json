@@ -1,5 +1,8 @@
 {
   "currency": "PKR",
   "taxRate": 0.10,
-  "deliveryFee": 200
+  "deliveryFeesByCity": {
+    "Rawalpindi": 200,
+    "Islamabad": 300
+  }
 }

@@ -1113,6 +1113,27 @@ h1, h2, h3 {
   border-radius: var(--radius);
   font-size: 0.92rem;
   line-height: 1.4;
+  white-space: pre-wrap;
+}
+
+.chat-bubble.bot p {
+  margin: 0 0 0.5rem;
+}
+
+.chat-bubble.bot ul {
+  list-style: disc;
+  margin: 0 0 0.5rem;
+  padding-left: 1.2rem;
+}
+
+.chat-bubble.bot li {
+  margin-bottom: 0.2rem;
+}
+
+.chat-bubble.bot p:last-child,
+.chat-bubble.bot ul:last-child,
+.chat-bubble.bot li:last-child {
+  margin-bottom: 0;
 }
 
 .chat-bubble.user {
