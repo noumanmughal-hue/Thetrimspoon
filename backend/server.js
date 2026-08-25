@@ -1246,7 +1246,7 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
     }
 
     res.status(502).json({
-      reply: "Sorry, I'm having trouble responding right now. Please try again in a moment.",
+      reply: "Sorry, the AI Nutritionist is temporarily offline. Please try again in a moment, or order directly via the WhatsApp button below.",
       conversationHistory: history,
     });
   }
