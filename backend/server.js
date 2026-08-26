@@ -1292,7 +1292,19 @@ const MAX_MESSAGE_LENGTH = 4000;
 const MAX_HISTORY_MESSAGES = 40;
 const MAX_HISTORY_BYTES = 200_000;
 
+// Temporarily disabled to stop Anthropic API token consumption — set back to false
+// (or remove) to resume. Short-circuits before any Claude API call is made; every
+// other route (menu, orders, staff dashboard) is unaffected.
+const CHAT_API_PAUSED = true;
+
 app.post('/api/chat', chatLimiter, async (req, res) => {
+  if (CHAT_API_PAUSED) {
+    return res.status(503).json({
+      reply: "The AI Nutritionist is temporarily paused. Please check back soon, or order directly via WhatsApp.",
+      conversationHistory: [],
+    });
+  }
+
   const { message, conversationHistory } = req.body;
 
   if (!message || typeof message !== 'string' || !message.trim()) {
