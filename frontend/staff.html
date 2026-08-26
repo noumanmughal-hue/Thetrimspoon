@@ -15,6 +15,18 @@
   </header>
 
   <main class="staff-main">
+    <div class="orders-toolbar">
+      <div class="status-tabs" role="tablist" aria-label="Filter orders by status">
+        <button type="button" class="status-tab" data-status="active" aria-selected="true">Active Orders</button>
+        <button type="button" class="status-tab" data-status="history" aria-selected="false">Completed / History</button>
+        <button type="button" class="status-tab" data-status="all" aria-selected="false">All Orders</button>
+      </div>
+      <div class="search-bar">
+        <input type="search" id="search-input" placeholder="Search by order ID, customer name, or phone…" aria-label="Search orders">
+        <button type="button" id="reset-filters-btn" class="btn btn-reset" hidden>Clear Search</button>
+      </div>
+    </div>
+
     <table class="orders-table">
       <thead>
         <tr>
@@ -31,6 +43,12 @@
     </table>
     <p id="empty-message" class="empty-message" hidden>No orders yet.</p>
     <p id="status-message" class="status-message" hidden></p>
+
+    <div class="pagination" id="pagination" hidden>
+      <button type="button" id="prev-page-btn" class="btn btn-page">Previous</button>
+      <span id="pagination-info" class="pagination-info"></span>
+      <button type="button" id="next-page-btn" class="btn btn-page">Next</button>
+    </div>
   </main>
 
   <script src="staff.js"></script>

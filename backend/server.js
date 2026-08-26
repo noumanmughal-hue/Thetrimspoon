@@ -7,6 +7,25 @@ const express = require('express');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const Anthropic = require('@anthropic-ai/sdk');
+const { neon } = require('@neondatabase/serverless');
+
+// neon() throws synchronously if DATABASE_URL is missing/invalid — guarded so a
+// misconfigured or not-yet-provisioned database can't crash the entire app (chat,
+// menu, everything) at module load. Order/staff routes fail closed with a clear
+// error instead; see requireOrdersDb().
+let sql = null;
+try {
+  if (process.env.DATABASE_URL) sql = neon(process.env.DATABASE_URL);
+} catch (error) {
+  console.error('Failed to initialize database connection:', error.message);
+}
+
+function requireOrdersDb() {
+  if (!sql) {
+    throw new Error('Order storage is not configured: set DATABASE_URL in the environment.');
+  }
+  return sql;
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -789,7 +808,7 @@ function getOrderSummary(orderState) {
 // customerConfirmed — this function can't read the conversation — but it deterministically
 // refuses to finalize unless that flag is strictly true AND the order is exactly what was
 // last shown via getOrderSummary (nothing changed since, and nothing was ever skipped).
-function finalizeOrder(orderState, input) {
+async function finalizeOrder(orderState, input) {
   const { customerConfirmed } = input || {};
 
   if (orderState.confirmed) {
@@ -837,7 +856,7 @@ function finalizeOrder(orderState, input) {
   // Only reachable once every gate above has passed, so a draft/unconfirmed order can
   // never be saved. Persist before marking confirmed in memory, so a write failure
   // leaves the order retriable rather than falsely marked done.
-  const savedOrder = saveConfirmedOrder(currentSummary);
+  const savedOrder = await saveConfirmedOrder(currentSummary);
 
   orderState.confirmed = true;
   orderState.status = 'confirmed';
@@ -864,42 +883,122 @@ function finalizeOrder(orderState, input) {
   };
 }
 
-// Orders are persisted to a local JSON file. This is for development/demo purposes
-// only — it assumes a single, long-lived filesystem. On Vercel, every path except
-// /tmp is read-only at runtime, so writing to the repo's data/ directory there throws
-// EROFS and crashes order confirmation — /tmp is used instead when deployed there.
-// /tmp is ephemeral (wiped between cold starts, not shared across instances), so this
-// still isn't durable; a real database is required for production use.
-const ORDERS_FILE_PATH = process.env.VERCEL
-  ? path.join('/tmp', 'orders.json')
-  : path.resolve(__dirname, '..', 'data', 'orders.json');
-
-// orders.json holds real customer PII (name, phone, address) written at runtime, so it's
-// gitignored rather than committed — meaning a fresh clone won't have the file yet.
-function readOrdersFile() {
-  if (!fs.existsSync(ORDERS_FILE_PATH)) return [];
-  return JSON.parse(fs.readFileSync(ORDERS_FILE_PATH, 'utf8'));
+// Orders are persisted in Postgres (Vercel Postgres / Neon) — real orders must survive
+// redeploys and be visible from any serverless instance, which a local file can't do
+// (Vercel's filesystem is read-only outside /tmp, and /tmp is ephemeral and per-instance).
+// customerName/phone/orderType/total/currency are denormalized onto real columns purely
+// so search/filter/sort can be plain indexed SQL; items/fulfillment/pricing stay as JSONB
+// so the exact existing order shape round-trips unchanged for the dashboard to render.
+// Lazily created once per serverless instance (cold start) and reused — CREATE TABLE
+// IF NOT EXISTS is cheap/idempotent, but every order-touching call still awaits this
+// so the very first request on a fresh instance can't race the table's existence.
+let ordersTableReady = null;
+function getOrdersTableReady() {
+  if (!ordersTableReady) ordersTableReady = ensureOrdersTable();
+  return ordersTableReady;
 }
 
-// Synchronous fs calls are used deliberately: they block Node's single event loop for
-// their duration, so two requests finalizing around the same time can't interleave a
-// read-modify-write and clobber each other's saved order.
-function saveConfirmedOrder(summary) {
-  const existingOrders = readOrdersFile();
+async function ensureOrdersTable() {
+  requireOrdersDb();
+  await sql`
+    CREATE TABLE IF NOT EXISTS orders (
+      order_id UUID PRIMARY KEY,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+      status TEXT NOT NULL,
+      order_type TEXT,
+      customer_name TEXT,
+      phone TEXT,
+      currency TEXT,
+      total NUMERIC,
+      items JSONB NOT NULL,
+      fulfillment JSONB NOT NULL,
+      pricing JSONB NOT NULL
+    )
+  `;
+  await sql`CREATE INDEX IF NOT EXISTS orders_status_idx ON orders (status)`;
+  await sql`CREATE INDEX IF NOT EXISTS orders_created_at_idx ON orders (created_at DESC)`;
+}
 
-  const savedOrder = {
-    orderId: crypto.randomUUID(),
-    timestamp: new Date().toISOString(),
-    status: 'NEW',
-    items: summary.items,
-    fulfillment: summary.fulfillment,
-    pricing: summary.pricing,
+function rowToOrder(row) {
+  return {
+    orderId: row.order_id,
+    timestamp: row.created_at.toISOString(),
+    status: row.status,
+    items: row.items,
+    fulfillment: row.fulfillment,
+    pricing: row.pricing,
   };
+}
 
-  existingOrders.push(savedOrder);
-  fs.writeFileSync(ORDERS_FILE_PATH, `${JSON.stringify(existingOrders, null, 2)}\n`, 'utf8');
+async function saveConfirmedOrder(summary) {
+  await getOrdersTableReady();
+  const orderId = crypto.randomUUID();
+  const result = await sql`
+    INSERT INTO orders (order_id, status, order_type, customer_name, phone, currency, total, items, fulfillment, pricing)
+    VALUES (
+      ${orderId}, 'NEW', ${summary.fulfillment.orderType || null}, ${summary.fulfillment.customerName || null},
+      ${summary.fulfillment.phone || null}, ${summary.pricing.currency || null}, ${summary.pricing.total},
+      ${JSON.stringify(summary.items)}, ${JSON.stringify(summary.fulfillment)}, ${JSON.stringify(summary.pricing)}
+    )
+    RETURNING order_id, created_at
+  `;
+  return { orderId: result[0].order_id, timestamp: result[0].created_at.toISOString() };
+}
 
-  return savedOrder;
+const ACTIVE_STATUSES = ['NEW', 'PREPARING', 'READY'];
+const HISTORY_STATUSES = ['COMPLETED'];
+
+// Dynamic WHERE clause built with $N placeholders only — every user-supplied value
+// (search text, status list) travels in the separate `values` array, never concatenated
+// into the query string, so this can't be SQL-injected regardless of what staff types in.
+async function queryOrders({ statusGroup, search, page, pageSize }) {
+  await getOrdersTableReady();
+  const conditions = [];
+  const values = [];
+
+  if (statusGroup === 'active') {
+    values.push(ACTIVE_STATUSES);
+    conditions.push(`status = ANY($${values.length})`);
+  } else if (statusGroup === 'history') {
+    values.push(HISTORY_STATUSES);
+    conditions.push(`status = ANY($${values.length})`);
+  }
+
+  if (search) {
+    values.push(`%${search}%`);
+    const idx = values.length;
+    conditions.push(`(order_id::text ILIKE $${idx} OR customer_name ILIKE $${idx} OR phone ILIKE $${idx})`);
+  }
+
+  const whereClause = conditions.length ? `WHERE ${conditions.join(' AND ')}` : '';
+
+  const countResult = await sql.query(`SELECT COUNT(*)::int AS count FROM orders ${whereClause}`, values);
+  const total = countResult[0].count;
+
+  const pageValues = [...values, pageSize, (page - 1) * pageSize];
+  const rows = await sql.query(
+    `SELECT * FROM orders ${whereClause} ORDER BY created_at DESC LIMIT $${pageValues.length - 1} OFFSET $${pageValues.length}`,
+    pageValues
+  );
+
+  return { orders: rows.map(rowToOrder), total };
+}
+
+async function advanceOrderStatus(orderId) {
+  await getOrdersTableReady();
+  const existing = await sql`SELECT status FROM orders WHERE order_id = ${orderId}`;
+  if (existing.length === 0) {
+    return { error: 'Order not found.', status: 404 };
+  }
+
+  const currentIndex = ORDER_STATUS_SEQUENCE.indexOf(existing[0].status);
+  if (currentIndex === -1 || currentIndex === ORDER_STATUS_SEQUENCE.length - 1) {
+    return { error: `Order is already ${existing[0].status} and cannot be advanced further.`, status: 400 };
+  }
+
+  const nextStatus = ORDER_STATUS_SEQUENCE[currentIndex + 1];
+  const updated = await sql`UPDATE orders SET status = ${nextStatus} WHERE order_id = ${orderId} RETURNING *`;
+  return { order: rowToOrder(updated[0]) };
 }
 
 function getSubscriptionCategory() {
@@ -1073,7 +1172,7 @@ function getWhatsAppOrderLink(orderState) {
   };
 }
 
-function runTool(name, input, orderState) {
+async function runTool(name, input, orderState) {
   if (name === 'getMenu') return getMenu();
   if (name === 'addItemToCart') return addItemToCart(orderState, input);
   if (name === 'modifyItem') return modifyItem(orderState, input);
@@ -1244,15 +1343,17 @@ app.post('/api/chat', chatLimiter, async (req, res) => {
 
       messages.push({ role: 'assistant', content: response.content });
 
-      const toolResults = response.content
-        .filter((block) => block.type === 'tool_use')
-        .map((block) => {
-          const result = runTool(block.name, block.input, req.orderState);
-          if (block.name === 'getGoalMealPlan' && result.success) lastGoalMealPlan = result;
-          if (block.name === 'getWhatsAppOrderLink' && result.success) lastWhatsAppOrderLink = result;
-          if (block.name === 'finalizeOrder' && result.success) lastFinalizedOrder = result;
-          return { type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(result) };
-        });
+      const toolResults = await Promise.all(
+        response.content
+          .filter((block) => block.type === 'tool_use')
+          .map(async (block) => {
+            const result = await runTool(block.name, block.input, req.orderState);
+            if (block.name === 'getGoalMealPlan' && result.success) lastGoalMealPlan = result;
+            if (block.name === 'getWhatsAppOrderLink' && result.success) lastWhatsAppOrderLink = result;
+            if (block.name === 'finalizeOrder' && result.success) lastFinalizedOrder = result;
+            return { type: 'tool_result', tool_use_id: block.id, content: JSON.stringify(result) };
+          })
+      );
 
       messages.push({ role: 'user', content: toolResults });
 
@@ -1349,29 +1450,36 @@ app.post('/api/cart/add-plan', chatLimiter, (req, res) => {
 });
 
 const ORDER_STATUS_SEQUENCE = ['NEW', 'PREPARING', 'READY', 'COMPLETED'];
+const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 100;
+const MAX_SEARCH_LENGTH = 100;
 
-app.get('/api/orders', (req, res) => {
-  const orders = readOrdersFile();
-  res.json({ orders });
+app.get('/api/orders', async (req, res) => {
+  const statusGroup = ['active', 'history', 'all'].includes(req.query.status) ? req.query.status : 'all';
+  const search = typeof req.query.q === 'string' ? req.query.q.trim().slice(0, MAX_SEARCH_LENGTH) : '';
+  const page = Math.max(1, parseInt(req.query.page, 10) || 1);
+  const pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, parseInt(req.query.pageSize, 10) || DEFAULT_PAGE_SIZE));
+
+  try {
+    const { orders, total } = await queryOrders({ statusGroup, search, page, pageSize });
+    res.json({ orders, total, page, pageSize });
+  } catch (error) {
+    console.error('Failed to query orders:', error);
+    res.status(500).json({ error: 'Could not load orders.' });
+  }
 });
 
-app.post('/api/orders/:orderId/advance', (req, res) => {
-  const orders = readOrdersFile();
-  const order = orders.find((candidate) => candidate.orderId === req.params.orderId);
-
-  if (!order) {
-    return res.status(404).json({ error: 'Order not found.' });
+app.post('/api/orders/:orderId/advance', async (req, res) => {
+  try {
+    const result = await advanceOrderStatus(req.params.orderId);
+    if (result.error) {
+      return res.status(result.status).json({ error: result.error });
+    }
+    res.json({ order: result.order });
+  } catch (error) {
+    console.error('Failed to advance order status:', error);
+    res.status(500).json({ error: 'Could not update order status.' });
   }
-
-  const currentIndex = ORDER_STATUS_SEQUENCE.indexOf(order.status);
-  if (currentIndex === -1 || currentIndex === ORDER_STATUS_SEQUENCE.length - 1) {
-    return res.status(400).json({ error: `Order is already ${order.status} and cannot be advanced further.` });
-  }
-
-  order.status = ORDER_STATUS_SEQUENCE[currentIndex + 1];
-  fs.writeFileSync(ORDERS_FILE_PATH, `${JSON.stringify(orders, null, 2)}\n`, 'utf8');
-
-  res.json({ order });
 });
 
 if (require.main === module) {

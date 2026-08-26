@@ -6,8 +6,7 @@ Healthy, high-protein food brand web app.
 
 - `frontend/` — index.html, styles.css, app.js
 - `backend/` — server-side code
-- `data/` — data files
-  - `orders.json` — temporary local-dev order storage (plain JSON array, no database). Dev-only; revisit before production.
+- `data/` — menu/fees/promotions/subscriptions data files
 - `prompts/` — prompt files
 
 ## Setup
@@ -19,9 +18,13 @@ Healthy, high-protein food brand web app.
    - `STAFF_USERNAME` / `STAFF_PASSWORD` — required for the staff dashboard
      (`/staff.html`, `/api/orders`); without these set, the dashboard is
      unreachable rather than left open.
+   - `DATABASE_URL` — Postgres connection string (Neon, via Vercel Marketplace)
+     for order storage. Without this set, the app still runs but placing/
+     viewing orders fails with a clear error instead of a crash.
 3. `npm start` (from `backend/`) — serves the API and the static frontend
-   together on `PORT`.
+   together on `PORT`. The `orders` table is created automatically on first
+   use if it doesn't already exist.
 
-Note: order storage (`data/orders.json`) is a local JSON file — see
-`backend/server.js` for details on why this is dev/demo-only and not suitable
-as-is for serverless/production hosting.
+Orders are stored in Postgres (see `backend/server.js`) so they survive
+redeploys and are visible from any serverless instance — this replaced an
+earlier local-JSON-file approach that didn't work reliably on Vercel.
