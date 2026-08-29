@@ -70,6 +70,17 @@ const PROMOTIONS_DATA = JSON.parse(
 const FEES_DATA = JSON.parse(
   fs.readFileSync(path.resolve(__dirname, '..', 'data', 'fees.json'), 'utf8')
 );
+const STORE_LOCATION = {
+  address: 'B-Block Satellite Town, near Hydri Chowk, Rawalpindi, Pakistan',
+  latitude: 33.63692508029359,
+  longitude: 73.06447573623352,
+  mapsUrl: null, // set below: precise coordinate link once known, otherwise falls
+                 // back to a Google Maps search URL built from the address.
+};
+STORE_LOCATION.mapsUrl =
+  STORE_LOCATION.latitude && STORE_LOCATION.longitude
+    ? `https://maps.google.com/?q=${STORE_LOCATION.latitude},${STORE_LOCATION.longitude}`
+    : `https://maps.google.com/?q=${encodeURIComponent(STORE_LOCATION.address)}`;
 const SUBSCRIPTIONS_DATA = JSON.parse(
   fs.readFileSync(path.resolve(__dirname, '..', 'data', 'subscriptions.json'), 'utf8')
 );
@@ -751,6 +762,7 @@ function setPickupDetails(orderState, input) {
     orderType: orderState.orderType,
     customerName: orderState.customerDetails.name || null,
     pickupTime: orderState.customerDetails.pickupTime || null,
+    storeLocation: { address: STORE_LOCATION.address, mapsUrl: STORE_LOCATION.mapsUrl },
   };
 }
 
